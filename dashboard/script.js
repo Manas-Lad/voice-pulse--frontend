@@ -7,12 +7,13 @@
 
   if (deviceToken) {
     localStorage.setItem('deviceToken', deviceToken);
+    // Keep token in memory and clean URL
     window.history.replaceState({}, document.title, window.location.pathname);
   } else {
     deviceToken = localStorage.getItem('deviceToken');
   }
 
-  // If no hardware token exists at all, bounce to landing
+  // If there is strictly no token anywhere, go to landing
   if (!deviceToken) {
     window.location.replace('/landing/');
     return;
@@ -20,20 +21,38 @@
 
   const API_BASE_URL = 'https://voice-pulse-backend.onrender.com/api';
 
-  // Verify device still exists in database; if deleted/uninstalled, purge local storage
-  async function verifyDeviceActive() {
+  // Fetch or initialize user profile so new devices never get bounced
+  async function fetchUserProfile() {
     try {
       const res = await fetch(`${API_BASE_URL}/users/device/${deviceToken}`);
-      if (res.status === 404) {
-        // Device no longer in database: clear browser storage and bounce
-        localStorage.removeItem('deviceToken');
-        window.location.replace('/landing/');
+      
+      if (res.ok) {
+        const user = await res.json();
+        profileData.forEach((field) => {
+          if (user[field.key]) {
+            field.value = user[field.key];
+          }
+        });
+        renderProfile();
+        addLiveLog(`Hardware paired: Device ID [${deviceToken.substring(0, 8)}...]`);
+      } else if (res.status === 404) {
+        // Device is new! Automatically register it in the DB instead of kicking to landing
+        console.log('New device detected. Registering device in database...');
+        await fetch(`${API_BASE_URL}/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            deviceUuid: deviceToken,
+            name: 'New User',
+            phoneNumber: ''
+          })
+        });
+        addLiveLog(`New hardware registered: [${deviceToken.substring(0, 8)}...]`);
       }
     } catch (e) {
       console.warn('Backend reachability check deferred:', e);
     }
   }
-  verifyDeviceActive();
 
   // ==========================================
   // 2. DOM ELEMENTS
