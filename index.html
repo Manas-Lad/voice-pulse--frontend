@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Voice Pulse</title>
+  <script>
+    (() => {
+      // 1. Grab token from URL (?deviceToken=...) or localStorage
+      const params = new URLSearchParams(window.location.search);
+      const queryToken = params.get('deviceToken');
+      const storedToken = localStorage.getItem('deviceToken');
+      const token = queryToken || storedToken;
+
+      if (token) {
+        if (queryToken) localStorage.setItem('deviceToken', queryToken);
+        // User has the app/permissions -> go directly to dashboard
+        window.location.replace('/dashboard/' + window.location.search);
+      } else {
+        // First-time / unauthenticated user -> go to landing page
+        window.location.replace('/landing/');
+      }
+    })();
+  </script>
+</head>
+<body>
+</body>
+</html>
