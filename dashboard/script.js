@@ -203,7 +203,7 @@
   }
 
   // ==========================================
-  // 4. TRUSTED CONTACTS
+  // 4. TRUSTED CONTACTS (BACKEND INTEGRATION)
   // ==========================================
   const contactsGrid = document.querySelector('#contacts-grid');
   const contactModal = document.querySelector('#contact-modal');
@@ -215,12 +215,22 @@
   const contactNameInput = document.querySelector('#contact-name');
   const contactPhoneInput = document.querySelector('#contact-phone');
 
-  let contacts = [
-    { id: 1, name: 'Primary Emergency Contact', phone: '+91 98199 33448', emergencyAlerts: true, locationSharing: true },
-  ];
+  let contacts = [];
   let editingContactId = null;
-  let nextContactId = 2;
   let lastContactModalOpener = null;
+
+  async function fetchContactsFromBackend() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/contacts`);
+      if (res.ok) {
+        const data = await res.json();
+        contacts = data;
+        renderContacts();
+      }
+    } catch (e) {
+      console.error('Failed to load contacts from database:', e);
+    }
+  }
 
   function addPersonIcon(target) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -237,6 +247,16 @@
 
   function renderContacts() {
     contactsGrid.replaceChildren();
+
+    if (contacts.length === 0) {
+      const emptyNote = document.createElement('p');
+      emptyNote.style.opacity = '0.6';
+      emptyNote.style.gridColumn = '1 / -1';
+      emptyNote.textContent = 'No emergency contacts added yet. Click "Add Contact" to save one to the database.';
+      contactsGrid.append(emptyNote);
+      return;
+    }
+
     contacts.forEach((contact) => {
       const card = document.createElement('article');
       card.className = 'trusted-contact-card';
@@ -305,12 +325,13 @@
   }
 
   if (contactsGrid && contactModal && contactForm && openContactFormButton && cancelContactFormButton) {
-    renderContacts();
+    fetchContactsFromBackend();
+
     openContactFormButton.addEventListener('click', () => openContactForm());
     cancelContactFormButton.addEventListener('click', closeContactForm);
     contactModal.querySelector('[data-close-contact-modal]').addEventListener('click', closeContactForm);
 
-    contactsGrid.addEventListener('click', (event) => {
+    contactsGrid.addEventListener('click', async (event) => {
       const action = event.target.closest('[data-contact-action]');
       if (!action) return;
       const card = action.closest('[data-contact-id]');
@@ -320,29 +341,70 @@
       if (action.dataset.contactAction === 'edit') {
         openContactForm(contact, action);
       } else if (action.dataset.contactAction === 'remove' && window.confirm('Remove this emergency contact?')) {
-        contacts = contacts.filter((item) => item.id !== contact.id);
-        renderContacts();
+        try {
+          const res = await fetch(`${API_BASE_URL}/contacts/${contact.id}`, { method: 'DELETE' });
+          if (res.ok) {
+            contacts = contacts.filter((item) => item.id !== contact.id);
+            renderContacts();
+            addLiveLog(`Emergency contact deleted from database: ${contact.name}`);
+          }
+        } catch (e) {
+          console.error('Failed to delete contact:', e);
+        }
       }
     });
 
-    contactForm.addEventListener('submit', (event) => {
+    contactForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       const name = contactNameInput.value.trim();
       const phone = contactPhoneInput.value.trim();
       if (!name || !phone) return;
 
-      const updatedContact = {
-        id: editingContactId ?? nextContactId++,
+      const payload = {
         name,
         phone,
         emergencyAlerts: contactForm.elements.namedItem('emergencyAlerts').checked,
         locationSharing: contactForm.elements.namedItem('locationSharing').checked,
       };
-      if (editingContactId === null) contacts.push(updatedContact);
-      else contacts = contacts.map((item) => item.id === editingContactId ? updatedContact : item);
 
-      renderContacts();
-      closeContactForm();
+      contactSubmitButton.disabled = true;
+      contactSubmitButton.textContent = 'Saving...';
+
+      try {
+        if (editingContactId === null) {
+          // POST /api/contacts
+          const res = await fetch(`${API_BASE_URL}/contacts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (res.ok) {
+            const saved = await res.json();
+            contacts.push(saved);
+            addLiveLog(`New emergency contact persisted to database: ${name}`);
+          }
+        } else {
+          // PUT /api/contacts/{id}
+          const res = await fetch(`${API_BASE_URL}/contacts/${editingContactId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (res.ok) {
+            const updated = await res.json();
+            contacts = contacts.map((item) => item.id === editingContactId ? updated : item);
+            addLiveLog(`Emergency contact updated in database: ${name}`);
+          }
+        }
+        renderContacts();
+        closeContactForm();
+      } catch (err) {
+        console.error('Error saving contact to backend:', err);
+        alert('Network error connecting to backend.');
+      } finally {
+        contactSubmitButton.disabled = false;
+        contactSubmitButton.textContent = editingContactId ? 'Save Changes' : 'Add Contact';
+      }
     });
   }
 
@@ -408,14 +470,12 @@
 
   async function pollAlerts() {
     try {
-      // 1. Try querying device-specific alert history
       let res = await fetch(`${API_BASE_URL}/alerts/device/${deviceToken}`);
       let deviceAlerts = [];
 
       if (res.ok) {
         deviceAlerts = await res.json();
       } else {
-        // Fallback to general list and filter by deviceToken
         res = await fetch(`${API_BASE_URL}/alerts`);
         if (res.ok) {
           const allAlerts = await res.json();
