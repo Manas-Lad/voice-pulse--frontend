@@ -7,19 +7,33 @@
 
   if (deviceToken) {
     localStorage.setItem('deviceToken', deviceToken);
-    // Clean URL without losing query parameters from memory
     window.history.replaceState({}, document.title, window.location.pathname);
   } else {
     deviceToken = localStorage.getItem('deviceToken');
   }
 
-  // If no hardware token exists, bounce to landing page to download the APK
+  // If no hardware token exists at all, bounce to landing
   if (!deviceToken) {
     window.location.replace('/landing/');
     return;
   }
 
   const API_BASE_URL = 'https://voice-pulse-backend.onrender.com/api';
+
+  // Verify device still exists in database; if deleted/uninstalled, purge local storage
+  async function verifyDeviceActive() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/device/${deviceToken}`);
+      if (res.status === 404) {
+        // Device no longer in database: clear browser storage and bounce
+        localStorage.removeItem('deviceToken');
+        window.location.replace('/landing/');
+      }
+    } catch (e) {
+      console.warn('Backend reachability check deferred:', e);
+    }
+  }
+  verifyDeviceActive();
 
   // ==========================================
   // 2. DOM ELEMENTS
@@ -230,6 +244,28 @@
     } catch (e) {
       console.error('Failed to load contacts from database:', e);
     }
+  }
+
+  async function unlinkDevice() {
+    if (!confirm('Are you sure you want to unlink and delete this device profile?')) return;
+
+    try {
+      await fetch(`${API_BASE_URL}/users/device/${deviceToken}`, {
+        method: 'DELETE'
+      });
+    } catch (e) {
+      console.warn('Network issue during deletion:', e);
+    } finally {
+      // Always purge browser storage and redirect to landing
+      localStorage.removeItem('deviceToken');
+      window.location.replace('/landing/');
+    }
+  }
+
+  // Bind to any reset/logout button in your HTML (e.g. #unlink-device-btn)
+  const unlinkBtn = document.querySelector('#unlink-device-btn');
+  if (unlinkBtn) {
+    unlinkBtn.addEventListener('click', unlinkDevice);
   }
 
   function addPersonIcon(target) {
