@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8f8f7">
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body class="is-dashboard-view"><nav class="profile-sidebar" aria-label="Primary navigation">
+    <img class="sidebar-logo" src="../landing/voicepulse.png" alt="Voice Pulse logo">
+    <button class="navbar-toggle" id="navbar-toggle" type="button" aria-label="Collapse navigation" aria-expanded="true" aria-controls="navbar-navigation">
+      <span aria-hidden="true">☰</span><span class="navbar-toggle-label">Toggle</span>
+    </button>
+    <div class="navbar-navigation" id="navbar-navigation" aria-hidden="false">
+    <button class="profile-nav-item" id="dashboard-nav-toggle" type="button" aria-pressed="true" aria-current="page" aria-controls="dashboard-view">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>
+      <span>Dashboard</span>
+    </button>
+    <button class="profile-nav-item" id="contacts-nav-toggle" type="button" aria-pressed="false" aria-controls="contacts-view">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3"/><path d="M3.5 19v-1.2a5.5 5.5 0 0 1 11 0V19zM17 8v6m-3-3h6"/></svg>
+      <span>Emergency Contacts</span>
+    </button>
+    <button class="profile-nav-item" id="profile-nav-toggle" type="button" aria-pressed="false" aria-controls="profile-view">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20v-1.4a6.5 6.5 0 0 1 13 0V20z"/></svg>
+      <span>Profile</span>
+    </button>
+    </div>
+  </nav>
+  <main id="navbar-content">
+    <section class="dashboard-view" id="dashboard-view" aria-labelledby="dashboard-title">
+      <div class="dashboard-content">
+        <h1 id="dashboard-title" tabindex="-1">Dashboard</h1>
+        <div class="dashboard-alert" role="status" aria-live="polite">
+          <div class="dashboard-alert-message"><span class="dashboard-alert-track" id="dashboard-alert-message">⚠ ALERT PREVIEW: Possible distress detected — reviewing voice signals...</span></div>
+        </div>
+        <section class="dashboard-panel" aria-labelledby="live-logs-title">
+          <h2 id="live-logs-title">Live Logs</h2>
+          <div class="dashboard-log-scroll" id="dashboard-log-scroll" tabindex="0" aria-label="Example log entries only; no live monitoring is connected">
+            <ul class="dashboard-log-list" id="dashboard-log-list" aria-live="polite">
+              <li><time datetime="14:23:01">[14:23:01]</time><span>Voice monitoring active</span></li>
+              <li><time datetime="14:23:04">[14:23:04]</time><span>Voice pattern analyzed</span></li>
+              <li><time datetime="14:23:07">[14:23:07]</time><span>Stress variation detected</span></li>
+              <li><time datetime="14:23:09">[14:23:09]</time><span>Breathing pattern variation detected</span></li>
+              <li><time datetime="14:23:12">[14:23:12]</time><span>Possible distress signal detected</span></li>
+              <li><time datetime="14:23:14">[14:23:14]</time><span>Emergency alert generated</span></li>
+            </ul>
+          </div>
+        </section>
+        <section class="dashboard-panel dashboard-history-panel" aria-labelledby="alert-history-title">
+          <h2 id="alert-history-title">Alert History</h2>
+          <ul class="dashboard-history-list" id="dashboard-history-list" aria-live="polite" aria-label="Example alert history entries">
+            <li><span class="dashboard-history-warning" aria-hidden="true">⚠</span><div><h3>Possible distress detected</h3><p>Today, 14:23</p><span class="dashboard-history-status">Status: Alert generated</span></div></li>
+            <li><span class="dashboard-history-warning" aria-hidden="true">⚠</span><div><h3>Stress pattern variation detected</h3><p>Yesterday, 21:14</p><span class="dashboard-history-status">Status: Reviewed</span></div></li>
+            <li><span class="dashboard-history-warning" aria-hidden="true">⚠</span><div><h3>Code phrase detected</h3><p>25 Sep 2026, 18:42</p><span class="dashboard-history-status">Status: Alert generated</span></div></li>
+          </ul>
+        </section>
+      </div>
+    </section>
+    <section class="profile-view" id="profile-view" aria-labelledby="profile-title" hidden>
+      <div class="profile-content">
+        <p class="profile-kicker">YOUR DETAILS</p>
+        <h1 id="profile-title" tabindex="-1">PROFILE</h1>
+        <section class="profile-card" aria-label="Profile information">
+          <form class="profile-form" id="profile-form" novalidate>
+            <div class="profile-fields" id="profile-fields" aria-live="polite"></div>
+            <div class="profile-actions"><button class="profile-action-button" id="profile-edit-button" type="button">Edit Profile</button></div>
+          </form>
+        </section>
+      </div>
+    </section>
+    <section class="contacts-view" id="contacts-view" aria-labelledby="contacts-title" hidden>
+      <div class="contacts-content">
+        <div class="contacts-heading-row">
+          <h1 id="contacts-title" tabindex="-1">Trusted Contacts</h1>
+          <div class="contacts-heading-actions">
+            <button class="contacts-add-button" id="open-contact-form" type="button"><span aria-hidden="true">+</span> Add Contact</button>
+            <span class="contacts-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="8" y="4" width="12" height="14" rx="2"/><path d="M5 8v11a2 2 0 0 0 2 2h9"/></svg></span>
+          </div>
+        </div>
+        <div class="contacts-grid" id="contacts-grid" aria-live="polite"></div>
+      </div>
+    </section>
+  </main>
+  <div class="contact-modal" id="contact-modal" hidden>
+    <div class="contact-modal-backdrop" data-close-contact-modal></div>
+    <section class="contact-modal-panel" role="dialog" aria-modal="true" aria-labelledby="contact-form-title">
+      <div class="contact-modal-heading"><h2 id="contact-form-title">Add Contact</h2></div>
+      <form id="contact-form" novalidate>
+        <div class="contact-form-fields">
+          <div class="contact-form-field"><label for="contact-name">Name</label><input id="contact-name" name="name" type="text" autocomplete="name" aria-describedby="contact-name-error"><span class="contact-form-error" id="contact-name-error" aria-live="polite"></span></div>
+          <div class="contact-form-field"><label for="contact-phone">Phone Number</label><input id="contact-phone" name="phone" type="tel" autocomplete="tel" aria-describedby="contact-phone-error"><span class="contact-form-error" id="contact-phone-error" aria-live="polite"></span></div>
+          <fieldset class="contact-features"><legend>Enabled features</legend><label><input type="checkbox" name="emergencyAlerts"> Emergency alerts</label><label><input type="checkbox" name="locationSharing"> Location sharing</label></fieldset>
+        </div>
+        <div class="contact-form-actions"><button class="contact-form-submit" id="save-contact" type="submit">Add Contact</button><button class="contact-form-cancel" id="cancel-contact-form" type="button">Cancel</button></div>
+      </form>
+    </section>
+  </div>
+</body>
+</html>
