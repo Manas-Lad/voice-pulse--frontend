@@ -1,4 +1,29 @@
 (() => {
+  // ==========================================
+  // 1. HARDWARE TOKEN CHECK & ROUTE GUARD
+  // ==========================================
+  const urlParams = new URLSearchParams(window.location.search);
+  let deviceToken = urlParams.get('deviceToken');
+
+  if (deviceToken) {
+    localStorage.setItem('deviceToken', deviceToken);
+    // Clean URL without losing query parameters from memory
+    window.history.replaceState({}, document.title, window.location.pathname);
+  } else {
+    deviceToken = localStorage.getItem('deviceToken');
+  }
+
+  // If no hardware token exists, bounce to landing page to download the APK
+  if (!deviceToken) {
+    window.location.replace('/landing/');
+    return;
+  }
+
+  const API_BASE_URL = 'https://voice-pulse-backend.onrender.com/api';
+
+  // ==========================================
+  // 2. DOM ELEMENTS
+  // ==========================================
   const sidebar = document.querySelector('.profile-sidebar');
   const navbarToggle = document.querySelector('#navbar-toggle');
   const navbarNavigation = document.querySelector('#navbar-navigation');
@@ -8,10 +33,12 @@
   const dashboardView = document.querySelector('#dashboard-view');
   const profileView = document.querySelector('#profile-view');
   const contactsView = document.querySelector('#contacts-view');
+  const dashboardAlertBanner = document.querySelector('#dashboard-alert-banner');
   const dashboardAlertMessage = document.querySelector('#dashboard-alert-message');
   const dashboardLogScroll = document.querySelector('#dashboard-log-scroll');
   const dashboardLogList = document.querySelector('#dashboard-log-list');
   const dashboardHistoryList = document.querySelector('#dashboard-history-list');
+  const noAlertsPlaceholder = document.querySelector('#no-alerts-placeholder');
 
   navbarToggle.addEventListener('click', () => {
     const willExpand = navbarToggle.getAttribute('aria-expanded') !== 'true';
@@ -23,22 +50,25 @@
     document.body.classList.toggle('is-navbar-collapsed', !willExpand);
   });
 
+  // ==========================================
+  // 3. PROFILE MANAGEMENT (BACKEND INTEGRATION)
+  // ==========================================
   const profileForm = document.querySelector('#profile-form');
   const profileFields = document.querySelector('#profile-fields');
   const profileAction = document.querySelector('#profile-edit-button');
 
   const profileData = [
-    { key: 'name', label: 'Name', value: 'Rahul Sharma', type: 'text' },
-    { key: 'phone', label: 'Phone Number', value: '+91 98765 43210', type: 'tel' },
-    { key: 'gender', label: 'Gender', value: 'Male', type: 'select' },
-    { key: 'dateOfBirth', label: 'Date of Birth', value: '2004-03-15', type: 'date' },
-    { key: 'address', label: 'Address', value: 'Mumbai, Maharashtra, India', type: 'textarea' },
+    { key: 'name', label: 'Name', value: '', type: 'text' },
+    { key: 'phoneNumber', label: 'Phone Number', value: '', type: 'tel' },
+    { key: 'gender', label: 'Gender', value: 'Prefer not to say', type: 'select' },
+    { key: 'dateOfBirth', label: 'Date of Birth', value: '', type: 'date' },
+    { key: 'address', label: 'Address', value: '', type: 'textarea' },
   ];
   const genderOptions = ['Male', 'Female', 'Other', 'Prefer not to say'];
   let editingProfile = false;
 
   function formatDate(value) {
-    if (!value) return '';
+    if (!value) return 'Not set';
     const date = new Date(`${value}T00:00:00`);
     return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('en-IN', {
       day: 'numeric', month: 'long', year: 'numeric',
@@ -66,6 +96,7 @@
             const option = document.createElement('option');
             option.value = optionText;
             option.textContent = optionText;
+            if (field.value === optionText) option.selected = true;
             control.append(option);
           });
         } else if (field.type === 'textarea') {
@@ -78,9 +109,9 @@
 
         control.id = fieldId;
         control.name = field.key;
-        control.value = field.value;
+        control.value = field.value || '';
         control.autocomplete = field.key === 'name' ? 'name'
-          : field.key === 'phone' ? 'tel'
+          : field.key === 'phoneNumber' ? 'tel'
             : field.key === 'address' ? 'street-address' : 'off';
         control.setAttribute('aria-describedby', `${fieldId}-error`);
         wrapper.append(control);
@@ -90,7 +121,9 @@
         label.textContent = field.label;
         const value = document.createElement('p');
         value.className = 'profile-value';
-        value.textContent = field.key === 'dateOfBirth' ? formatDate(field.value) : field.value;
+        value.textContent = (field.key === 'dateOfBirth')
+          ? formatDate(field.value)
+          : (field.value || 'Not set');
         wrapper.append(label, value);
       }
 
@@ -103,20 +136,45 @@
     });
 
     profileAction.textContent = editingProfile ? 'Save Changes' : 'Edit Profile';
-    // Keep the control as a button: changing it to submit during the Edit click
-    // can submit the form immediately and exit edit mode before the user edits.
     profileAction.type = 'button';
   }
 
-  function showValidationError(field, message) {
-    const control = profileForm.elements.namedItem(field.key);
-    const error = document.querySelector(`#profile-${field.key}-error`);
-    error.textContent = message;
-    control.setAttribute('aria-invalid', message ? 'true' : 'false');
+  async function fetchUserProfile() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/device/${deviceToken}`);
+      if (!res.ok) return;
+      const user = await res.json();
+      profileData.forEach((field) => {
+        if (user[field.key]) {
+          field.value = user[field.key];
+        }
+      });
+      renderProfile();
+      addLiveLog(`Hardware paired: Device ID [${deviceToken.substring(0, 8)}...]`);
+    } catch (e) {
+      console.error('Failed to fetch user profile:', e);
+    }
+  }
+
+  async function saveUserProfile(updatedPayload) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/device/${deviceToken}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedPayload)
+      });
+      if (res.ok) {
+        addLiveLog('Profile updated and synchronized with secure storage.');
+      }
+    } catch (e) {
+      console.error('Failed to save profile:', e);
+    }
   }
 
   if (profileView && profileForm && profileFields && profileAction) {
     renderProfile();
+    fetchUserProfile();
+
     profileAction.addEventListener('click', () => {
       if (editingProfile) {
         profileForm.requestSubmit();
@@ -127,35 +185,26 @@
       profileFields.querySelector('input, select, textarea')?.focus();
     });
 
-    profileForm.addEventListener('submit', (event) => {
+    profileForm.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const controls = new Map();
-      let firstInvalid = null;
+      const updatedPayload = {};
 
       profileData.forEach((field) => {
         const control = profileForm.elements.namedItem(field.key);
-        controls.set(field.key, control);
-        const value = control.value.trim();
-        let error = '';
-
-        if (!value) error = `${field.label} cannot be empty.`;
-        showValidationError(field, error);
-        if (error && !firstInvalid) firstInvalid = control;
+        const val = control ? control.value.trim() : '';
+        field.value = val;
+        updatedPayload[field.key] = val;
       });
 
-      if (firstInvalid) {
-        firstInvalid.focus();
-        return;
-      }
-
-      profileData.forEach((field) => {
-        profileData.find((item) => item.key === field.key).value = controls.get(field.key).value.trim();
-      });
       editingProfile = false;
       renderProfile();
+      await saveUserProfile(updatedPayload);
     });
   }
 
+  // ==========================================
+  // 4. TRUSTED CONTACTS
+  // ==========================================
   const contactsGrid = document.querySelector('#contacts-grid');
   const contactModal = document.querySelector('#contact-modal');
   const contactForm = document.querySelector('#contact-form');
@@ -165,12 +214,12 @@
   const contactFormTitle = document.querySelector('#contact-form-title');
   const contactNameInput = document.querySelector('#contact-name');
   const contactPhoneInput = document.querySelector('#contact-phone');
+
   let contacts = [
-    { id: 1, name: 'Mom', phone: '+91 XXXXX XXXXX', emergencyAlerts: true, locationSharing: true },
-    { id: 2, name: 'Dad', phone: '+91 XXXXX XXXXX', emergencyAlerts: true, locationSharing: false },
+    { id: 1, name: 'Primary Emergency Contact', phone: '+91 98199 33448', emergencyAlerts: true, locationSharing: true },
   ];
   let editingContactId = null;
-  let nextContactId = 3;
+  let nextContactId = 2;
   let lastContactModalOpener = null;
 
   function addPersonIcon(target) {
@@ -233,17 +282,9 @@
     });
   }
 
-  function clearContactErrors() {
-    document.querySelector('#contact-name-error').textContent = '';
-    document.querySelector('#contact-phone-error').textContent = '';
-    contactNameInput.removeAttribute('aria-invalid');
-    contactPhoneInput.removeAttribute('aria-invalid');
-  }
-
   function closeContactForm() {
     contactModal.hidden = true;
     contactForm.reset();
-    clearContactErrors();
     editingContactId = null;
     const focusTarget = lastContactModalOpener?.isConnected ? lastContactModalOpener : openContactFormButton;
     focusTarget.focus();
@@ -253,11 +294,10 @@
     editingContactId = contact?.id ?? null;
     lastContactModalOpener = opener;
     contactForm.reset();
-    clearContactErrors();
     contactNameInput.value = contact?.name ?? '';
     contactPhoneInput.value = contact?.phone ?? '';
-    contactForm.elements.namedItem('emergencyAlerts').checked = contact?.emergencyAlerts ?? false;
-    contactForm.elements.namedItem('locationSharing').checked = contact?.locationSharing ?? false;
+    contactForm.elements.namedItem('emergencyAlerts').checked = contact?.emergencyAlerts ?? true;
+    contactForm.elements.namedItem('locationSharing').checked = contact?.locationSharing ?? true;
     contactFormTitle.textContent = contact ? 'Edit Contact' : 'Add Contact';
     contactSubmitButton.textContent = contact ? 'Save Changes' : 'Add Contact';
     contactModal.hidden = false;
@@ -266,14 +306,9 @@
 
   if (contactsGrid && contactModal && contactForm && openContactFormButton && cancelContactFormButton) {
     renderContacts();
-
     openContactFormButton.addEventListener('click', () => openContactForm());
     cancelContactFormButton.addEventListener('click', closeContactForm);
     contactModal.querySelector('[data-close-contact-modal]').addEventListener('click', closeContactForm);
-
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && !contactModal.hidden) closeContactForm();
-    });
 
     contactsGrid.addEventListener('click', (event) => {
       const action = event.target.closest('[data-contact-action]');
@@ -284,7 +319,7 @@
 
       if (action.dataset.contactAction === 'edit') {
         openContactForm(contact, action);
-      } else if (action.dataset.contactAction === 'remove' && window.confirm('Remove this trusted contact?')) {
+      } else if (action.dataset.contactAction === 'remove' && window.confirm('Remove this emergency contact?')) {
         contacts = contacts.filter((item) => item.id !== contact.id);
         renderContacts();
       }
@@ -292,25 +327,9 @@
 
     contactForm.addEventListener('submit', (event) => {
       event.preventDefault();
-      clearContactErrors();
       const name = contactNameInput.value.trim();
       const phone = contactPhoneInput.value.trim();
-      let firstInvalid = null;
-
-      if (!name) {
-        document.querySelector('#contact-name-error').textContent = 'Name cannot be empty.';
-        contactNameInput.setAttribute('aria-invalid', 'true');
-        firstInvalid = contactNameInput;
-      }
-      if (!phone) {
-        document.querySelector('#contact-phone-error').textContent = 'Phone number cannot be empty.';
-        contactPhoneInput.setAttribute('aria-invalid', 'true');
-        firstInvalid ??= contactPhoneInput;
-      }
-      if (firstInvalid) {
-        firstInvalid.focus();
-        return;
-      }
+      if (!name || !phone) return;
 
       const updatedContact = {
         id: editingContactId ?? nextContactId++,
@@ -327,6 +346,9 @@
     });
   }
 
+  // ==========================================
+  // 5. LIVE HARDWARE LOGS & ALERT POLLING
+  // ==========================================
   function addLiveLog(message) {
     if (!dashboardLogList || typeof message !== 'string' || !message.trim()) return;
     const time = new Intl.DateTimeFormat('en-GB', {
@@ -342,44 +364,84 @@
     dashboardLogScroll.scrollTop = dashboardLogScroll.scrollHeight;
   }
 
-  function addAlertToHistory(message, timestamp, status) {
-    if (!dashboardHistoryList || typeof message !== 'string' || !message.trim()) return;
+  function setDashboardAlert(message, isCritical = true) {
+    if (!dashboardAlertMessage) return;
+    dashboardAlertMessage.textContent = message;
+    if (dashboardAlertBanner) {
+      if (isCritical) {
+        dashboardAlertBanner.classList.add('is-active-emergency');
+      } else {
+        dashboardAlertBanner.classList.remove('is-active-emergency');
+      }
+    }
+  }
+
+  const knownAlertIds = new Set();
+
+  function renderAlertHistoryItem(alert) {
+    if (noAlertsPlaceholder && noAlertsPlaceholder.parentNode) {
+      noAlertsPlaceholder.remove();
+    }
+
     const item = document.createElement('li');
     const warning = document.createElement('span');
     warning.className = 'dashboard-history-warning';
     warning.setAttribute('aria-hidden', 'true');
     warning.textContent = '⚠';
+
     const details = document.createElement('div');
     const title = document.createElement('h3');
+    const triggers = (alert.signals && alert.signals.length) ? alert.signals.join(', ') : 'Distress signal';
+    title.textContent = `Distress detected (${triggers})`;
+
     const time = document.createElement('p');
+    time.textContent = alert.timestamp ? new Date(alert.timestamp).toLocaleString('en-IN') : 'Just now';
+
     const state = document.createElement('span');
-    title.textContent = message.trim();
-    time.textContent = timestamp ?? '';
     state.className = 'dashboard-history-status';
-    state.textContent = `Status: ${status ?? ''}`;
+    state.textContent = `Status: ${alert.status || 'TRIGGERED'} | Score: ${alert.score ?? 1.0}`;
+
     details.append(title, time, state);
     item.append(warning, details);
     dashboardHistoryList.prepend(item);
   }
 
-  function setDashboardAlert(message) {
-    if (dashboardAlertMessage && typeof message === 'string') dashboardAlertMessage.textContent = message;
+  async function pollAlerts() {
+    try {
+      // 1. Try querying device-specific alert history
+      let res = await fetch(`${API_BASE_URL}/alerts/device/${deviceToken}`);
+      let deviceAlerts = [];
+
+      if (res.ok) {
+        deviceAlerts = await res.json();
+      } else {
+        // Fallback to general list and filter by deviceToken
+        res = await fetch(`${API_BASE_URL}/alerts`);
+        if (res.ok) {
+          const allAlerts = await res.json();
+          deviceAlerts = allAlerts.filter(a => a.deviceUuid === deviceToken);
+        }
+      }
+
+      deviceAlerts.forEach((alert) => {
+        if (!knownAlertIds.has(alert.id)) {
+          knownAlertIds.add(alert.id);
+          renderAlertHistoryItem(alert);
+          setDashboardAlert(`CRITICAL ALERT: Distress event detected (${alert.signals?.join(', ') || 'Voice Stress'})`, true);
+          addLiveLog(`[SOS ALERT INGESTED] Event #${alert.id} detected from mobile hardware.`);
+        }
+      });
+    } catch (e) {
+      console.warn('Alert polling update failed:', e);
+    }
   }
 
-  window.addLiveLog = addLiveLog;
-  window.addAlertToHistory = addAlertToHistory;
-  window.setDashboardAlert = setDashboardAlert;
-  if (dashboardLogScroll) dashboardLogScroll.scrollTop = dashboardLogScroll.scrollHeight;
+  // Begin polling every 3 seconds
+  setInterval(pollAlerts, 3000);
+  pollAlerts();
 
+  // Navigation switching
   function showAppView(view) {
-    if (view === 'dashboard' && dashboardNav.getAttribute('aria-pressed') === 'true') return;
-    if (view === 'profile' && profileNav.getAttribute('aria-pressed') === 'true') return;
-    if (view === 'contacts' && contactsNav.getAttribute('aria-pressed') === 'true') return;
-    if (profileNav.getAttribute('aria-pressed') === 'true' && view !== 'profile' && editingProfile) {
-      editingProfile = false;
-      renderProfile();
-    }
-
     dashboardView.hidden = view !== 'dashboard';
     profileView.hidden = view !== 'profile';
     contactsView.hidden = view !== 'contacts';
@@ -393,10 +455,6 @@
       if (active) item.setAttribute('aria-current', 'page');
       else item.removeAttribute('aria-current');
     });
-
-    if (view === 'dashboard') dashboardView.querySelector('#dashboard-title').focus({ preventScroll: true });
-    if (view === 'profile') profileView.querySelector('#profile-title').focus({ preventScroll: true });
-    if (view === 'contacts') contactsView.querySelector('#contacts-title').focus({ preventScroll: true });
   }
 
   dashboardNav.addEventListener('click', () => showAppView('dashboard'));

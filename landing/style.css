@@ -1613,3 +1613,26 @@ h1 span {
         transform: none
     }
 }
+
+.menu-dashboard-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--red);
+  font-weight: 800;
+  font-size: 12px;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.menu-dashboard-link:hover {
+  color: var(--red-dark);
+  transform: translateX(2px);
+}
+
+@media (max-width: 680px) {
+  .menu-dashboard-link {
+    padding: 12px 0;
+    border-bottom: 1px solid #efefed;
+    font-size: 13px;
+  }
+}

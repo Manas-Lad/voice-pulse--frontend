@@ -1102,3 +1102,22 @@ body.is-contacts-view .contacts-view {
     animation-iteration-count: infinite !important
   }
 }
+
+.dashboard-alert.is-active-emergency {
+  background: #fde8e8;
+  border-color: #f05252;
+  color: #9b1c1c;
+  box-shadow: 0 0 0 3px rgba(240, 82, 82, 0.25);
+  animation: pulse-emergency 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-emergency {
+  from {
+    transform: scale(1);
+    box-shadow: 0 0 0 2px rgba(240, 82, 82, 0.2);
+  }
+  to {
+    transform: scale(1.008);
+    box-shadow: 0 0 0 6px rgba(240, 82, 82, 0.35);
+  }
+}

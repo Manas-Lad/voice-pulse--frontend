@@ -1,4 +1,41 @@
 (() => {
+  // ==========================================
+  // 1. DEVICE TOKEN VERIFICATION (LANDING PAGE)
+  // ==========================================
+  const urlParams = new URLSearchParams(window.location.search);
+  const queryToken = urlParams.get('deviceToken');
+  const storedToken = localStorage.getItem('deviceToken');
+
+  // If the user visits the landing page with a deviceToken query param (e.g. from an app deep link)
+  if (queryToken) {
+    localStorage.setItem('deviceToken', queryToken);
+    window.location.replace('/dashboard/');
+    return;
+  }
+
+  // If already paired from a previous session on this browser, show dashboard shortcut
+  const dashboardNavLink = document.querySelector('#nav-dashboard-link');
+  if (storedToken && dashboardNavLink) {
+    dashboardNavLink.hidden = false;
+  }
+
+  // ==========================================
+  // 2. DOWNLOAD BUTTON INTERACTION
+  // ==========================================
+  const downloadBtn = document.querySelector('#download-apk-action');
+  const downloadBtnText = document.querySelector('#download-btn-text');
+  if (downloadBtn && downloadBtnText) {
+    downloadBtn.addEventListener('click', () => {
+      downloadBtnText.textContent = 'Downloading APK...';
+      setTimeout(() => {
+        downloadBtnText.textContent = 'Download APK';
+      }, 4000);
+    });
+  }
+
+  // ==========================================
+  // 3. MOBILE MENU TOGGLE
+  // ==========================================
   const menuButton = document.querySelector('.menu-toggle');
   const siteMenu = document.querySelector('.site-menu');
 
@@ -30,7 +67,9 @@
     });
   }
 
-  // Anchor links provide smooth scrolling in CSS, with a safe JS fallback.
+  // ==========================================
+  // 4. SMOOTH SCROLLING
+  // ==========================================
   document.querySelectorAll('a[href^="#"]').forEach((link) => {
     link.addEventListener('click', (event) => {
       const target = document.querySelector(link.getAttribute('href'));
@@ -41,6 +80,9 @@
     });
   });
 
+  // ==========================================
+  // 5. SCROLL REVEAL OBSERVER
+  // ==========================================
   const revealItems = document.querySelectorAll('.reveal');
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -58,6 +100,9 @@
     revealItems.forEach((item) => item.classList.add('is-visible'));
   }
 
+  // ==========================================
+  // 6. WAVEFORM VISUALIZER INTERACTION
+  // ==========================================
   const waveform = document.querySelector('#hero-waveform');
   if (waveform) {
     const bars = [...waveform.querySelectorAll('span')];

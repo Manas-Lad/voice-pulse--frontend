@@ -15,13 +15,19 @@
 <body>
   <header class="site-header">
     <nav class="nav-shell" aria-label="Main navigation">
-      <a class="wordmark" href="#top" aria-label="Voice Pulse home"><img class="wordmark-logo" src="voicepulse.png"
-          alt=""><span class="wordmark-copy"><span class="brand-name">VOICE PULSE</span><span class="brand-slogan">Hear
-            the signal. Detect the distress.</span></span></a>
+      <a class="wordmark" href="#top" aria-label="Voice Pulse home">
+        <img class="wordmark-logo" src="voicepulse.png" alt="Voice Pulse Logo">
+        <span class="wordmark-copy">
+          <span class="brand-name">VOICE PULSE</span>
+          <span class="brand-slogan">Hear the signal. Detect the distress.</span>
+        </span>
+      </a>
       <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="site-menu">
         <span></span><span></span>
       </button>
       <div class="site-menu" id="site-menu">
+        <!-- Dynamically unhidden if deviceToken exists in localStorage -->
+        <a class="menu-dashboard-link" id="nav-dashboard-link" href="/dashboard/" hidden>Open Dashboard →</a>
         <a class="menu-cta" href="#how-it-works">How it works <span aria-hidden="true">↗</span></a>
       </div>
     </nav>
@@ -37,9 +43,8 @@
           <p class="hero-description">When someone can’t reach for a panic button, their voice may still tell a story.
             Recognize possible distress through voice stress, breathing changes, or code words spoken naturally during a
             call.</p>
-          <a class="button button-primary" href="#how-it-works">How It Works <span aria-hidden="true">↓</span></a>
-          <p class="hero-note"><span aria-hidden="true">✳</span> Designed around the moments when speaking up isn’t
-            simple.</p>
+          <a class="button button-primary" href="#download-section">Get Started <span aria-hidden="true">↓</span></a>
+          <p class="hero-note"><span aria-hidden="true">✳</span> Designed around the moments when speaking up isn’t simple.</p>
         </div>
 
         <div class="hero-art reveal" role="img"
@@ -78,26 +83,27 @@
               class="alert-arrow" aria-hidden="true">↗</span></div>
           <span class="art-index" aria-hidden="true">01 — 03</span>
         </div>
-        <div class="hero-bottomline" aria-hidden="true"><span>SAFETY CAN SOUND DIFFERENT</span><span>SCROLL TO EXPLORE
-            ↓</span></div>
+        <div class="hero-bottomline" aria-hidden="true"><span>SAFETY CAN SOUND DIFFERENT</span><span>SCROLL TO EXPLORE ↓</span></div>
       </section>
 
-      <section class="download-section page-shell" aria-labelledby="download-title">
+      <section class="download-section page-shell" id="download-section" aria-labelledby="download-title">
         <p class="download-label">GET THE APP</p>
         <h2 id="download-title">Download Our APK</h2>
-        <p class="download-description">Experience non-verbal distress detection directly on your device.</p>
+        <p class="download-description">Install Voice Pulse on your Android phone to enable background call distress monitoring and device-paired alerts.</p>
         <a class="download-apk-btn"
-            href="../downloads/DistressService.apk"
-            download>
-          <span>Download APK</span>
+            id="download-apk-action"
+            href="/DistressService.apk"
+            download="DistressService.apk">
+          <span id="download-btn-text">Download APK</span>
           <svg class="download-icon" aria-hidden="true" viewBox="0 0 20 20" fill="none">
-          <path d="M10 2.75v9.5m0 0 3.5-3.5M10 12.25l-3.5-3.5M3.75 13.75v2.5h12.5v-2.5"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round" />
+            <path d="M10 2.75v9.5m0 0 3.5-3.5M10 12.25l-3.5-3.5M3.75 13.75v2.5h12.5v-2.5"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round" />
           </svg>
         </a>
+        <p class="download-status" id="download-hint">After installing, grant the requested permissions to pair your phone automatically.</p>
       </section>
 
       <section class="intro-section page-shell section-space" id="what-is" aria-labelledby="what-title">
@@ -140,8 +146,7 @@
                   <path d="M24 7v34M19 12c-6 0-8 5-8 11s2 9 8 9m10-20c6 0 8 5 8 11s-2 9-8 9M6 24h7m22 0h7" />
                 </svg></span></div>
             <h3>Breathing<br>Changes</h3>
-            <p>Identifies unusual changes in breathing patterns during a conversation.</p><span class="card-foot">BREATH
-              / RHYTHM</span>
+            <p>Identifies unusual changes in breathing patterns during a conversation.</p><span class="card-foot">BREATH / RHYTHM</span>
           </article>
           <article class="feature-card reveal">
             <div class="card-topline"><span>03</span><span class="card-icon" aria-hidden="true"><svg
@@ -150,23 +155,19 @@
                   <path d="M15 21h2m6 0h2m6 0h2" />
                 </svg></span></div>
             <h3>Code-Word<br>Detection</h3>
-            <p>Recognizes predefined code-word phrases spoken naturally during a call.</p><span class="card-foot">WORDS
-              / CONTEXT</span>
+            <p>Recognizes predefined code-word phrases spoken naturally during a call.</p><span class="card-foot">WORDS / CONTEXT</span>
           </article>
         </div>
-        <div class="section-footnote reveal"><span class="footnote-line"></span><span>Three signals. One more considered
-            way to recognize distress.</span><span class="footnote-code">02 — 03</span></div>
+        <div class="section-footnote reveal"><span class="footnote-line"></span><span>Three signals. One more considered way to recognize distress.</span><span class="footnote-code">02 — 03</span></div>
       </section>
 
       <section class="alert-section page-shell section-space" id="silent-alerts" aria-labelledby="alert-title">
         <div class="section-heading reveal"><span class="section-number">03 / THE RESPONSE</span><span
             class="section-marker" aria-hidden="true">✳</span></div>
         <div class="alert-layout reveal">
-          <div class="alert-copy"><span class="eyebrow eyebrow-light"><span class="status-dot"></span> A response
-              without a gesture</span>
+          <div class="alert-copy"><span class="eyebrow eyebrow-light"><span class="status-dot"></span> A response without a gesture</span>
             <h2 class="section-title" id="alert-title">Silent<br>Alerts<span class="title-period">.</span></h2>
-            <p>When potential distress is detected, the system can trigger a silent alert without requiring an obvious
-              action from the person during the call.</p>
+            <p>When potential distress is detected, the system can trigger a silent alert without requiring an obvious action from the person during the call.</p>
           </div>
           <div class="flow-card" aria-label="Conceptual flow: phone call, detection, silent alert">
             <div class="flow-top"><span>CONCEPTUAL FLOW</span><span>NO BUTTON REQUIRED</span></div>
@@ -187,22 +188,22 @@
         </div>
       </section>
 
-      <section class="final-cta page-shell reveal" id="explore" aria-labelledby="final-title"><span class="cta-kicker">A
-          SAFER WAY TO LISTEN</span>
+      <section class="final-cta page-shell reveal" id="explore" aria-labelledby="final-title"><span class="cta-kicker">A SAFER WAY TO LISTEN</span>
         <h2 id="final-title">Detect Distress<br>Without a <span>Panic Button.</span></h2>
         <div class="cta-bottom">
-          <p>Voice patterns, breathing changes, and code words can help identify possible distress during a
-            conversation.</p><a class="button button-light" href="#how-it-works">Explore the Concept <span
-              aria-hidden="true">↗</span></a>
+          <p>Voice patterns, breathing changes, and code words can help identify possible distress during a conversation.</p>
+          <a class="button button-light" href="#download-section">Download APK <span aria-hidden="true">↗</span></a>
         </div><span class="cta-decoration" aria-hidden="true">✳</span>
       </section>
     </div>
-
   </main>
-  <footer class="site-footer page-shell"><a class="wordmark footer-wordmark" href="#top"
-      aria-label="Voice Pulse home"><img class="wordmark-logo" src="voicepulse.png" alt=""><span>VOICE PULSE</span></a>
-    <p>Non-Verbal Distress Detection via Voice Pattern Analysis</p><a class="back-to-top" href="#top"
-      aria-label="Back to top">↑</a>
+
+  <footer class="site-footer page-shell">
+    <a class="wordmark footer-wordmark" href="#top" aria-label="Voice Pulse home">
+      <img class="wordmark-logo" src="voicepulse.png" alt=""><span>VOICE PULSE</span>
+    </a>
+    <p>Non-Verbal Distress Detection via Voice Pattern Analysis</p>
+    <a class="back-to-top" href="#top" aria-label="Back to top">↑</a>
   </footer>
 </body>
 

@@ -5,14 +5,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f8f8f7">
-  <title>Dashboard</title>
+  <title>Voice Pulse — Live Device Dashboard</title>
   <link rel="stylesheet" href="style.css">
   <script src="script.js" defer></script>
 </head>
 
 <body class="is-dashboard-view">
   <nav class="profile-sidebar" aria-label="Primary navigation">
-    <img class="sidebar-logo" src="../landing/voicepulse.png" alt="Voice Pulse logo">
+    <img class="sidebar-logo" src="voicepulse.png" alt="Voice Pulse logo">
     <button class="navbar-toggle" id="navbar-toggle" type="button" aria-label="Collapse navigation" aria-expanded="true"
       aria-controls="navbar-navigation">
       <span aria-hidden="true">☰</span><span class="navbar-toggle-label">Toggle</span>
@@ -46,81 +46,84 @@
       </button>
     </div>
   </nav>
+
   <main id="navbar-content">
+    <!-- DASHBOARD VIEW -->
     <section class="dashboard-view" id="dashboard-view" aria-labelledby="dashboard-title">
       <div class="dashboard-content">
         <h1 id="dashboard-title" tabindex="-1">Dashboard</h1>
-        <div class="dashboard-alert" role="status" aria-live="polite">
-          <div class="dashboard-alert-message"><span class="dashboard-alert-track" id="dashboard-alert-message">⚠ ALERT
-              PREVIEW: Possible distress detected — reviewing voice signals...</span></div>
+        
+        <div class="dashboard-alert" id="dashboard-alert-banner" role="status" aria-live="polite">
+          <div class="dashboard-alert-message">
+            <span class="dashboard-alert-track" id="dashboard-alert-message">
+              ● MONITORING STANDBY: Listening for hardware distress signals...
+            </span>
+          </div>
         </div>
-        <section class="dashboard-panel" aria-labelledby="live-logs-title">
-          <h2 id="live-logs-title">Live Logs</h2>
-          <div class="dashboard-log-scroll" id="dashboard-log-scroll" tabindex="0"
-            aria-label="Example log entries only; no live monitoring is connected">
-            <ul class="dashboard-log-list" id="dashboard-log-list" aria-live="polite">
 
+        <section class="dashboard-panel" aria-labelledby="live-logs-title">
+          <h2 id="live-logs-title">Live Hardware Logs</h2>
+          <div class="dashboard-log-scroll" id="dashboard-log-scroll" tabindex="0"
+            aria-label="Live logs from connected device">
+            <ul class="dashboard-log-list" id="dashboard-log-list" aria-live="polite">
+              <!-- Dynamically populated -->
             </ul>
           </div>
         </section>
+
         <section class="dashboard-panel dashboard-history-panel" aria-labelledby="alert-history-title">
           <h2 id="alert-history-title">Alert History</h2>
           <div class="dashboard-history-list-div">
             <ul class="dashboard-history-list" id="dashboard-history-list" aria-live="polite"
-            aria-label="Example alert history entries">
-            <li><span class="dashboard-history-warning" aria-hidden="true">⚠</span>
-              <div>
-                <h3>Possible distress detected</h3>
-                <p>Today, 14:23</p><span class="dashboard-history-status">Status: Alert generated</span>
-              </div>
-            </li>
-            <li><span class="dashboard-history-warning" aria-hidden="true">⚠</span>
-              <div>
-                <h3>Stress pattern variation detected</h3>
-                <p>Yesterday, 21:14</p><span class="dashboard-history-status">Status: Reviewed</span>
-              </div>
-            </li>
-            <li><span class="dashboard-history-warning" aria-hidden="true">⚠</span>
-              <div>
-                <h3>Code phrase detected</h3>
-                <p>25 Sep 2026, 18:42</p><span class="dashboard-history-status">Status: Alert generated</span>
-              </div>
-            </li>
-          </ul>
+              aria-label="Incident alert history">
+              <li id="no-alerts-placeholder" style="padding: 18px 12px; color: #888d8b; font-size: 13px;">
+                No distress alerts logged yet. System standing by.
+              </li>
+            </ul>
           </div>
         </section>
       </div>
     </section>
+
+    <!-- PROFILE VIEW -->
     <section class="profile-view" id="profile-view" aria-labelledby="profile-title" hidden>
       <div class="profile-content">
-        <p class="profile-kicker">YOUR DETAILS</p>
+        <p class="profile-kicker">YOUR DEVICE PROFILE</p>
         <h1 id="profile-title" tabindex="-1">PROFILE</h1>
         <section class="profile-card" aria-label="Profile information">
           <form class="profile-form" id="profile-form" novalidate>
             <div class="profile-fields" id="profile-fields" aria-live="polite"></div>
-            <div class="profile-actions"><button class="profile-action-button" id="profile-edit-button"
-                type="button">Edit Profile</button></div>
+            <div class="profile-actions">
+              <button class="profile-action-button" id="profile-edit-button" type="button">Edit Profile</button>
+            </div>
           </form>
         </section>
       </div>
     </section>
+
+    <!-- TRUSTED CONTACTS VIEW -->
     <section class="contacts-view" id="contacts-view" aria-labelledby="contacts-title" hidden>
       <div class="contacts-content">
         <div class="contacts-heading-row">
           <h1 id="contacts-title" tabindex="-1">Trusted Contacts</h1>
           <div class="contacts-heading-actions">
-            <button class="contacts-add-button" id="open-contact-form" type="button"><span aria-hidden="true">+</span>
-              Add Contact</button>
-            <span class="contacts-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none">
+            <button class="contacts-add-button" id="open-contact-form" type="button">
+              <span aria-hidden="true">+</span> Add Contact
+            </button>
+            <span class="contacts-heading-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
                 <rect x="8" y="4" width="12" height="14" rx="2" />
                 <path d="M5 8v11a2 2 0 0 0 2 2h9" />
-              </svg></span>
+              </svg>
+            </span>
           </div>
         </div>
         <div class="contacts-grid" id="contacts-grid" aria-live="polite"></div>
       </div>
     </section>
   </main>
+
+  <!-- ADD / EDIT CONTACT MODAL -->
   <div class="contact-modal" id="contact-modal" hidden>
     <div class="contact-modal-backdrop" data-close-contact-modal></div>
     <section class="contact-modal-panel" role="dialog" aria-modal="true" aria-labelledby="contact-form-title">
@@ -129,19 +132,25 @@
       </div>
       <form id="contact-form" novalidate>
         <div class="contact-form-fields">
-          <div class="contact-form-field"><label for="contact-name">Name</label><input id="contact-name" name="name"
-              type="text" autocomplete="name" aria-describedby="contact-name-error"><span class="contact-form-error"
-              id="contact-name-error" aria-live="polite"></span></div>
-          <div class="contact-form-field"><label for="contact-phone">Phone Number</label><input id="contact-phone"
-              name="phone" type="tel" autocomplete="tel" aria-describedby="contact-phone-error"><span
-              class="contact-form-error" id="contact-phone-error" aria-live="polite"></span></div>
+          <div class="contact-form-field">
+            <label for="contact-name">Name</label>
+            <input id="contact-name" name="name" type="text" autocomplete="name" aria-describedby="contact-name-error">
+            <span class="contact-form-error" id="contact-name-error" aria-live="polite"></span>
+          </div>
+          <div class="contact-form-field">
+            <label for="contact-phone">Phone Number</label>
+            <input id="contact-phone" name="phone" type="tel" autocomplete="tel" aria-describedby="contact-phone-error">
+            <span class="contact-form-error" id="contact-phone-error" aria-live="polite"></span>
+          </div>
           <fieldset class="contact-features">
-            <legend>Enabled features</legend><label><input type="checkbox" name="emergencyAlerts"> Emergency
-              alerts</label><label><input type="checkbox" name="locationSharing"> Location sharing</label>
+            <legend>Enabled features</legend>
+            <label><input type="checkbox" name="emergencyAlerts" checked> Emergency alerts</label>
+            <label><input type="checkbox" name="locationSharing" checked> Location sharing</label>
           </fieldset>
         </div>
-        <div class="contact-form-actions"><button class="contact-form-submit" id="save-contact" type="submit">Add
-            Contact</button><button class="contact-form-cancel" id="cancel-contact-form" type="button">Cancel</button>
+        <div class="contact-form-actions">
+          <button class="contact-form-submit" id="save-contact" type="submit">Add Contact</button>
+          <button class="contact-form-cancel" id="cancel-contact-form" type="button">Cancel</button>
         </div>
       </form>
     </section>
