@@ -1,26 +1,25 @@
 (() => {
   // ==========================================
-  // 1. HARDWARE TOKEN CHECK & ROUTE GUARD
+  // 1. HARDWARE UUID CHECK & ROUTE GUARD
   // ==========================================
   const urlParams = new URLSearchParams(window.location.search);
   let deviceToken = urlParams.get('deviceToken');
 
   if (deviceToken) {
     localStorage.setItem('deviceToken', deviceToken);
-    // Keep token in memory and clean URL
     window.history.replaceState({}, document.title, window.location.pathname);
   } else {
     deviceToken = localStorage.getItem('deviceToken');
   }
 
-  // Fallback for Local Server development if no token exists
+  // If testing in localhost without a mobile device paired, create a real RFC-4122 UUID
   if (!deviceToken && (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')) {
-    deviceToken = 'demo-device-token-12345';
+    deviceToken = crypto.randomUUID();
     localStorage.setItem('deviceToken', deviceToken);
-    console.warn('Development mode: using demo device token.');
+    console.info('Initialized local test session with valid hardware UUID:', deviceToken);
   }
 
-  // Redirect to landing if no token found
+  // Redirect to landing if no device token is present
   if (!deviceToken) {
     window.location.replace('/landing/');
     return;
@@ -49,47 +48,58 @@
   const dashboardHistoryList = document.querySelector('#dashboard-history-list');
   const noAlertsPlaceholder = document.querySelector('#no-alerts-placeholder');
 
-  // Frontend-only emergency codeword management.
   const codewordForm = document.querySelector('#codeword-form');
   const codewordInput = document.querySelector('#codeword-input');
   const codewordFeedback = document.querySelector('#codeword-feedback');
   const activeCodewordsList = document.querySelector('#active-codewords-list');
-  const codewordsStorageKey = 'voicePulseCodewords';
+
+  let codewords = [];
 
   function normalizeCodeword(value) {
     return typeof value === 'string' ? value.trim().toLowerCase() : '';
   }
 
-  function loadCodewords() {
-    const savedCodewords = localStorage.getItem(codewordsStorageKey);
-    if (savedCodewords !== null) {
-      try {
-        const parsed = JSON.parse(savedCodewords);
-        if (Array.isArray(parsed)) {
-          return [...new Set(parsed.map(normalizeCodeword).filter(Boolean))];
-        }
-      } catch {
-        return [];
-      }
-      return [];
-    }
-
-    const previousCodeword = normalizeCodeword(localStorage.getItem('voicePulseCodeword'));
-    if (previousCodeword) {
-      localStorage.setItem(codewordsStorageKey, JSON.stringify([previousCodeword]));
-      return [previousCodeword];
-    }
-    return [];
-  }
-
-  let codewords = loadCodewords();
-
-  function saveCodewords() {
-    localStorage.setItem(codewordsStorageKey, JSON.stringify(codewords));
-  }
-
   function showCodewordFeedback(message) {
     if (codewordFeedback) codewordFeedback.textContent = message;
+  }
+
+  // ==========================================
+  // 3. BACKEND CODEWORDS SYNC (SINGLE ROW ARRAY)
+  // ==========================================
+  async function fetchCodewordsFromBackend() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/device/${deviceToken}/codes`);
+      if (res.ok) {
+        const data = await res.json();
+        codewords = Array.isArray(data) ? [...new Set(data.map(normalizeCodeword).filter(Boolean))] : [];
+        renderCodewords();
+      }
+    } catch (e) {
+      console.error('Failed to load custom codewords:', e);
+      showCodewordFeedback('Could not fetch codewords from server.');
+    }
+  }
+
+  async function appendCodewordsToBackend(wordsToAdd) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/device/${deviceToken}/codes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(wordsToAdd)
+      });
+      if (res.ok) {
+        const updatedList = await res.json();
+        codewords = Array.isArray(updatedList) ? updatedList : [];
+        renderCodewords();
+        addLiveLog(`Dynamic codeword registered: [${wordsToAdd.join(', ')}]`);
+        showCodewordFeedback('Codeword saved.');
+      } else {
+        showCodewordFeedback('Server error saving codeword.');
+      }
+    } catch (e) {
+      console.error('Failed to append custom codewords:', e);
+      showCodewordFeedback('Network error reaching backend.');
+    }
   }
 
   function renderCodewords() {
@@ -99,7 +109,7 @@
     if (!codewords.length) {
       const emptyState = document.createElement('li');
       emptyState.className = 'codewords-empty-state';
-      emptyState.textContent = 'No codewords configured yet.';
+      emptyState.textContent = 'No custom codewords configured yet.';
       activeCodewordsList.append(emptyState);
       return;
     }
@@ -107,95 +117,45 @@
     codewords.forEach((codeword, index) => {
       const row = document.createElement('li');
       row.className = 'codeword-row';
+
       const name = document.createElement('span');
       name.className = 'codeword-name';
       name.textContent = codeword;
 
       const actions = document.createElement('div');
       actions.className = 'codeword-actions';
-      const editButton = document.createElement('button');
-      editButton.className = 'profile-action-button';
-      editButton.type = 'button';
-      editButton.textContent = 'Edit';
-      editButton.setAttribute('aria-label', `Edit ${codeword}`);
-      editButton.addEventListener('click', () => editCodeword(row, index, codeword));
 
       const deleteButton = document.createElement('button');
       deleteButton.className = 'profile-action-button';
       deleteButton.type = 'button';
       deleteButton.textContent = 'Delete';
       deleteButton.setAttribute('aria-label', `Delete ${codeword}`);
-      deleteButton.addEventListener('click', () => {
+      deleteButton.addEventListener('click', async () => {
         codewords.splice(index, 1);
-        saveCodewords();
         renderCodewords();
-        showCodewordFeedback('Codeword deleted successfully.');
+        try {
+          await fetch(`${API_BASE_URL}/users/device/${deviceToken}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customCodes: codewords })
+          });
+          addLiveLog(`Codeword removed: "${codeword}"`);
+          showCodewordFeedback('Codeword deleted successfully.');
+        } catch (e) {
+          console.error('Failed to sync deletion:', e);
+        }
       });
 
-      actions.append(editButton, deleteButton);
+      actions.append(deleteButton);
       row.append(name, actions);
       activeCodewordsList.append(row);
     });
   }
 
-  function editCodeword(row, index, existingCodeword) {
-    row.replaceChildren();
-    const field = document.createElement('div');
-    field.className = 'contact-form-field codeword-edit-field';
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = existingCodeword;
-    input.setAttribute('aria-label', `Edit ${existingCodeword}`);
-    const feedback = document.createElement('span');
-    feedback.className = 'codewords-feedback';
-    field.append(input, feedback);
-
-    const actions = document.createElement('div');
-    actions.className = 'codeword-actions';
-    const saveButton = document.createElement('button');
-    saveButton.className = 'profile-action-button';
-    saveButton.type = 'button';
-    saveButton.textContent = 'Save';
-    const cancelButton = document.createElement('button');
-    cancelButton.className = 'profile-action-button';
-    cancelButton.type = 'button';
-    cancelButton.textContent = 'Cancel';
-
-    const saveEdit = () => {
-      const updatedCodeword = normalizeCodeword(input.value);
-      if (!updatedCodeword) {
-        feedback.textContent = 'Please enter a codeword.';
-        return;
-      }
-      if (codewords.some((item, itemIndex) => itemIndex !== index && item === updatedCodeword)) {
-        feedback.textContent = 'Codeword already exists.';
-        return;
-      }
-
-      codewords[index] = updatedCodeword;
-      saveCodewords();
-      renderCodewords();
-      showCodewordFeedback('Codeword updated successfully.');
-    };
-
-    saveButton.addEventListener('click', saveEdit);
-    cancelButton.addEventListener('click', renderCodewords);
-    input.addEventListener('input', () => { feedback.textContent = ''; });
-    input.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') saveEdit();
-      if (event.key === 'Escape') renderCodewords();
-    });
-    actions.append(saveButton, cancelButton);
-    row.append(field, actions);
-    input.focus();
-    input.select();
-  }
-
-  renderCodewords();
-
-  codewordForm?.addEventListener('submit', (event) => {
+  codewordForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const codeword = normalizeCodeword(codewordInput?.value || '');
+
     if (!codeword) {
       showCodewordFeedback('Please enter a codeword.');
       return;
@@ -206,18 +166,20 @@
       return;
     }
 
-    codewords.push(codeword);
-    saveCodewords();
-    renderCodewords();
+    showCodewordFeedback('Saving...');
+    await appendCodewordsToBackend([codeword]);
     codewordForm.reset();
-    showCodewordFeedback('Codeword added successfully.');
   });
 
   codewordInput?.addEventListener('input', () => {
     showCodewordFeedback('');
   });
 
-  // User Location map: keep location handling isolated from dashboard features.
+  fetchCodewordsFromBackend();
+
+  // ==========================================
+  // 4. USER LOCATION MAP
+  // ==========================================
   const dashboardMap = document.querySelector('#dashboard-map');
   if (dashboardMap) {
     const showMapMessage = (message) => {
@@ -233,18 +195,18 @@
       navigator.geolocation.getCurrentPosition((position) => {
         const { latitude, longitude } = position.coords;
         const map = document.createElement('iframe');
-        map.title = 'Google Map showing your current location';
+        map.title = 'Current location map';
         map.loading = 'lazy';
         map.referrerPolicy = 'no-referrer-when-downgrade';
         map.src = `https://www.google.com/maps?q=${encodeURIComponent(`${latitude},${longitude}`)}&z=15&output=embed`;
         dashboardMap.replaceChildren(map);
         dashboardMap.setAttribute('role', 'region');
-        dashboardMap.setAttribute('aria-label', 'Map showing your current location');
+        dashboardMap.setAttribute('aria-label', 'Map showing current location');
       }, (error) => {
         if (error.code === error.PERMISSION_DENIED) {
           showMapMessage('Location access was denied.');
         } else {
-          showMapMessage('Unable to determine your location.');
+          showMapMessage('Unable to determine location.');
         }
       }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
     }
@@ -265,7 +227,7 @@
   }
 
   // ==========================================
-  // 3. PROFILE MANAGEMENT (BACKEND INTEGRATION)
+  // 5. PROFILE MANAGEMENT (UUID COMPLIANT)
   // ==========================================
   const profileForm = document.querySelector('#profile-form');
   const profileFields = document.querySelector('#profile-fields');
@@ -359,7 +321,7 @@
   async function fetchUserProfile() {
     try {
       const res = await fetch(`${API_BASE_URL}/users/device/${deviceToken}`);
-      
+
       if (res.ok) {
         const user = await res.json();
         profileData.forEach((field) => {
@@ -368,22 +330,19 @@
           }
         });
         renderProfile();
-        addLiveLog(`Hardware paired: Device ID [${deviceToken.substring(0, 8)}...]`);
+        addLiveLog(`Hardware paired: [${deviceToken.substring(0, 8)}...]`);
       } else if (res.status === 404) {
-        console.log('New device detected. Registering device in database...');
-        await fetch(`${API_BASE_URL}/users`, {
+        await fetch(`${API_BASE_URL}/users/register-device`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            deviceUuid: deviceToken,
-            name: 'New User',
-            phoneNumber: ''
+            deviceUuid: deviceToken
           })
         });
-        addLiveLog(`New hardware registered: [${deviceToken.substring(0, 8)}...]`);
+        addLiveLog(`Hardware provisioned: [${deviceToken.substring(0, 8)}...]`);
       }
     } catch (e) {
-      console.warn('Backend reachability check deferred:', e);
+      console.warn('Backend reachability deferred:', e);
     }
   }
 
@@ -395,7 +354,7 @@
         body: JSON.stringify(updatedPayload)
       });
       if (res.ok) {
-        addLiveLog('Profile updated and synchronized with secure storage.');
+        addLiveLog('Profile synchronized to database.');
       }
     } catch (e) {
       console.error('Failed to save profile:', e);
@@ -434,7 +393,7 @@
   }
 
   // ==========================================
-  // 4. TRUSTED CONTACTS (BACKEND INTEGRATION)
+  // 6. TRUSTED CONTACTS
   // ==========================================
   const contactsGrid = document.querySelector('#contacts-grid');
   const contactModal = document.querySelector('#contact-modal');
@@ -454,12 +413,11 @@
     try {
       const res = await fetch(`${API_BASE_URL}/contacts`);
       if (res.ok) {
-        const data = await res.json();
-        contacts = data;
+        contacts = await res.json();
         renderContacts();
       }
     } catch (e) {
-      console.error('Failed to load contacts from database:', e);
+      console.error('Failed to load contacts:', e);
     }
   }
 
@@ -484,7 +442,7 @@
       const emptyNote = document.createElement('p');
       emptyNote.style.opacity = '0.6';
       emptyNote.style.gridColumn = '1 / -1';
-      emptyNote.textContent = 'No emergency contacts added yet. Click "Add Contact" to save one to the database.';
+      emptyNote.textContent = 'No emergency contacts registered.';
       contactsGrid.append(emptyNote);
       return;
     }
@@ -505,7 +463,7 @@
 
       const phone = document.createElement('p');
       phone.className = 'trusted-contact-phone';
-      phone.textContent = contact.phone;
+      phone.textContent = contact.phone || contact.phoneNumber;
 
       const features = document.createElement('ul');
       features.className = 'trusted-contact-features';
@@ -549,7 +507,7 @@
     lastContactModalOpener = opener;
     contactForm.reset();
     if (contactNameInput) contactNameInput.value = contact?.name ?? '';
-    if (contactPhoneInput) contactPhoneInput.value = contact?.phone ?? '';
+    if (contactPhoneInput) contactPhoneInput.value = contact?.phone || contact?.phoneNumber || '';
     if (contactForm.elements.namedItem('emergencyAlerts')) {
       contactForm.elements.namedItem('emergencyAlerts').checked = contact?.emergencyAlerts ?? true;
     }
@@ -584,7 +542,7 @@
           if (res.ok) {
             contacts = contacts.filter((item) => item.id !== contact.id);
             renderContacts();
-            addLiveLog(`Emergency contact deleted from database: ${contact.name}`);
+            addLiveLog(`Emergency contact removed: ${contact.name}`);
           }
         } catch (e) {
           console.error('Failed to delete contact:', e);
@@ -618,7 +576,7 @@
           if (res.ok) {
             const saved = await res.json();
             contacts.push(saved);
-            addLiveLog(`New emergency contact persisted to database: ${name}`);
+            addLiveLog(`New emergency contact added: ${name}`);
           }
         } else {
           const res = await fetch(`${API_BASE_URL}/contacts/${editingContactId}`, {
@@ -629,14 +587,13 @@
           if (res.ok) {
             const updated = await res.json();
             contacts = contacts.map((item) => item.id === editingContactId ? updated : item);
-            addLiveLog(`Emergency contact updated in database: ${name}`);
+            addLiveLog(`Emergency contact updated: ${name}`);
           }
         }
         renderContacts();
         closeContactForm();
       } catch (err) {
         console.error('Error saving contact to backend:', err);
-        alert('Network error connecting to backend.');
       } finally {
         contactSubmitButton.disabled = false;
         contactSubmitButton.textContent = editingContactId ? 'Save Changes' : 'Add Contact';
@@ -645,7 +602,7 @@
   }
 
   // ==========================================
-  // 5. LIVE HARDWARE LOGS & ALERT POLLING
+  // 7. LIVE LOGS & ALERT POLLING
   // ==========================================
   function addLiveLog(message) {
     if (!dashboardLogList || typeof message !== 'string' || !message.trim()) return;
@@ -668,11 +625,7 @@
     if (!dashboardAlertMessage) return;
     dashboardAlertMessage.textContent = message;
     if (dashboardAlertBanner) {
-      if (isCritical) {
-        dashboardAlertBanner.classList.add('is-active-emergency');
-      } else {
-        dashboardAlertBanner.classList.remove('is-active-emergency');
-      }
+      dashboardAlertBanner.classList.toggle('is-active-emergency', isCritical);
     }
   }
 
@@ -727,7 +680,7 @@
           knownAlertIds.add(alert.id);
           renderAlertHistoryItem(alert);
           setDashboardAlert(`CRITICAL ALERT: Distress event detected (${alert.signals?.join(', ') || 'Voice Stress'})`, true);
-          addLiveLog(`[SOS ALERT INGESTED] Event #${alert.id} detected from mobile hardware.`);
+          addLiveLog(`[SOS ALERT INGESTED] Event #${alert.id} received.`);
         }
       });
     } catch (e) {
@@ -738,7 +691,9 @@
   setInterval(pollAlerts, 3000);
   pollAlerts();
 
-  // View Navigation Switcher
+  // ==========================================
+  // 8. VIEW SWITCHER
+  // ==========================================
   function showAppView(view) {
     if (dashboardView) dashboardView.hidden = view !== 'dashboard';
     if (profileView) profileView.hidden = view !== 'profile';
