@@ -388,6 +388,105 @@ body.is-profile-view .profile-view {
   display: flex
 }
 
+body.is-codewords-view .site-header,
+body.is-codewords-view #landing-view,
+body.is-codewords-view .site-footer {
+  display: none
+}
+
+body.is-codewords-view .codewords-view {
+  display: flex
+}
+
+.codewords-content {
+  display: grid;
+  gap: 18px
+}
+
+.codewords-content>h1 {
+  margin-bottom: 14px;
+  font-size: clamp(40px, 5vw, 58px);
+  line-height: 1.05;
+  letter-spacing: -.075em
+}
+
+.codewords-description {
+  margin: 0;
+  color: #626867;
+  font-size: 13px;
+  line-height: 1.7
+}
+
+.codewords-card-title {
+  margin: 0 0 20px;
+  font-size: 20px;
+  line-height: 1.25;
+  letter-spacing: -.045em
+}
+
+.codewords-feedback {
+  color: var(--red-dark);
+  font-size: 10px;
+  line-height: 1.4
+}
+
+.codewords-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none
+}
+
+.codeword-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line)
+}
+
+.codeword-row:first-child {
+  padding-top: 0
+}
+
+.codeword-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0
+}
+
+.codeword-name {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere
+}
+
+.codeword-actions {
+  display: flex;
+  flex: none;
+  gap: 8px
+}
+
+.codeword-actions .profile-action-button {
+  width: auto;
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 11px
+}
+
+.codeword-edit-field {
+  flex: 1;
+  min-width: 0
+}
+
+.codewords-empty-state {
+  color: #777d7a;
+  font-size: 13px
+}
+
 @media(max-width:680px) {
 
 
@@ -420,6 +519,25 @@ body.is-profile-view .profile-view {
   .profile-action-button {
     width: 100%;
     min-height: 48px
+  }
+
+  .codewords-content>h1 {
+    margin-bottom: 0;
+    font-size: clamp(37px, 10vw, 49px)
+  }
+
+  .codeword-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px
+  }
+
+  .codeword-actions {
+    width: 100%
+  }
+
+  .codeword-actions .profile-action-button {
+    width: auto
   }
 }
 
@@ -612,6 +730,29 @@ body.is-dashboard-view .dashboard-view {
   color: #777d7a;
   font-size: 10px;
   line-height: 1.5
+}
+
+.dashboard-map {
+  width: 100%;
+  height: 350px;
+  overflow: hidden;
+  border: 1px solid #ecebe8;
+  border-radius: 6px;
+  background: #fbfbfa
+}
+
+.dashboard-map iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0
+}
+
+.dashboard-map-message {
+  margin: 0;
+  padding: 16px;
+  color: #777d7a;
+  font-size: 13px
 }
 
 body.is-contacts-view .site-header,
@@ -1033,6 +1174,10 @@ body.is-contacts-view .contacts-view {
   .dashboard-history-list h3 {
     font-size: 12px
   }
+
+  .dashboard-map {
+    height: 280px
+  }
 }
 
 @media(max-width:680px) {
@@ -1120,4 +1265,12 @@ body.is-contacts-view .contacts-view {
     transform: scale(1.008);
     box-shadow: 0 0 0 6px rgba(240, 82, 82, 0.35);
   }
+}
+
+/* Ensure views hide cleanly based on hidden attribute */
+.dashboard-view[hidden],
+.profile-view[hidden],
+.contacts-view[hidden],
+.codewords-view[hidden] {
+  display: none !important;
 }

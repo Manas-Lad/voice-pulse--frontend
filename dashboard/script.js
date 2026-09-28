@@ -13,46 +13,20 @@
     deviceToken = localStorage.getItem('deviceToken');
   }
 
-  // If there is strictly no token anywhere, go to landing
+  // Fallback for Local Server development if no token exists
+  if (!deviceToken && (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')) {
+    deviceToken = 'demo-device-token-12345';
+    localStorage.setItem('deviceToken', deviceToken);
+    console.warn('Development mode: using demo device token.');
+  }
+
+  // Redirect to landing if no token found
   if (!deviceToken) {
     window.location.replace('/landing/');
     return;
   }
 
   const API_BASE_URL = 'https://voice-pulse-backend.onrender.com/api';
-
-  // Fetch or initialize user profile so new devices never get bounced
-  async function fetchUserProfile() {
-    try {
-      const res = await fetch(`${API_BASE_URL}/users/device/${deviceToken}`);
-      
-      if (res.ok) {
-        const user = await res.json();
-        profileData.forEach((field) => {
-          if (user[field.key]) {
-            field.value = user[field.key];
-          }
-        });
-        renderProfile();
-        addLiveLog(`Hardware paired: Device ID [${deviceToken.substring(0, 8)}...]`);
-      } else if (res.status === 404) {
-        // Device is new! Automatically register it in the DB instead of kicking to landing
-        console.log('New device detected. Registering device in database...');
-        await fetch(`${API_BASE_URL}/users`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            deviceUuid: deviceToken,
-            name: 'New User',
-            phoneNumber: ''
-          })
-        });
-        addLiveLog(`New hardware registered: [${deviceToken.substring(0, 8)}...]`);
-      }
-    } catch (e) {
-      console.warn('Backend reachability check deferred:', e);
-    }
-  }
 
   // ==========================================
   // 2. DOM ELEMENTS
@@ -63,9 +37,11 @@
   const dashboardNav = document.querySelector('#dashboard-nav-toggle');
   const profileNav = document.querySelector('#profile-nav-toggle');
   const contactsNav = document.querySelector('#contacts-nav-toggle');
+  const codewordsNav = document.querySelector('#codewords-nav-toggle');
   const dashboardView = document.querySelector('#dashboard-view');
   const profileView = document.querySelector('#profile-view');
   const contactsView = document.querySelector('#contacts-view');
+  const codewordsView = document.querySelector('#codewords-view');
   const dashboardAlertBanner = document.querySelector('#dashboard-alert-banner');
   const dashboardAlertMessage = document.querySelector('#dashboard-alert-message');
   const dashboardLogScroll = document.querySelector('#dashboard-log-scroll');
@@ -73,15 +49,220 @@
   const dashboardHistoryList = document.querySelector('#dashboard-history-list');
   const noAlertsPlaceholder = document.querySelector('#no-alerts-placeholder');
 
-  navbarToggle.addEventListener('click', () => {
-    const willExpand = navbarToggle.getAttribute('aria-expanded') !== 'true';
-    navbarToggle.setAttribute('aria-expanded', String(willExpand));
-    navbarToggle.setAttribute('aria-label', willExpand ? 'Collapse navigation' : 'Expand navigation');
-    sidebar.classList.toggle('is-collapsed', !willExpand);
-    navbarNavigation.hidden = !willExpand;
-    navbarNavigation.setAttribute('aria-hidden', String(!willExpand));
-    document.body.classList.toggle('is-navbar-collapsed', !willExpand);
+  // Frontend-only emergency codeword management.
+  const codewordForm = document.querySelector('#codeword-form');
+  const codewordInput = document.querySelector('#codeword-input');
+  const codewordFeedback = document.querySelector('#codeword-feedback');
+  const activeCodewordsList = document.querySelector('#active-codewords-list');
+  const codewordsStorageKey = 'voicePulseCodewords';
+
+  function normalizeCodeword(value) {
+    return typeof value === 'string' ? value.trim().toLowerCase() : '';
+  }
+
+  function loadCodewords() {
+    const savedCodewords = localStorage.getItem(codewordsStorageKey);
+    if (savedCodewords !== null) {
+      try {
+        const parsed = JSON.parse(savedCodewords);
+        if (Array.isArray(parsed)) {
+          return [...new Set(parsed.map(normalizeCodeword).filter(Boolean))];
+        }
+      } catch {
+        return [];
+      }
+      return [];
+    }
+
+    const previousCodeword = normalizeCodeword(localStorage.getItem('voicePulseCodeword'));
+    if (previousCodeword) {
+      localStorage.setItem(codewordsStorageKey, JSON.stringify([previousCodeword]));
+      return [previousCodeword];
+    }
+    return [];
+  }
+
+  let codewords = loadCodewords();
+
+  function saveCodewords() {
+    localStorage.setItem(codewordsStorageKey, JSON.stringify(codewords));
+  }
+
+  function showCodewordFeedback(message) {
+    if (codewordFeedback) codewordFeedback.textContent = message;
+  }
+
+  function renderCodewords() {
+    if (!activeCodewordsList) return;
+    activeCodewordsList.replaceChildren();
+
+    if (!codewords.length) {
+      const emptyState = document.createElement('li');
+      emptyState.className = 'codewords-empty-state';
+      emptyState.textContent = 'No codewords configured yet.';
+      activeCodewordsList.append(emptyState);
+      return;
+    }
+
+    codewords.forEach((codeword, index) => {
+      const row = document.createElement('li');
+      row.className = 'codeword-row';
+      const name = document.createElement('span');
+      name.className = 'codeword-name';
+      name.textContent = codeword;
+
+      const actions = document.createElement('div');
+      actions.className = 'codeword-actions';
+      const editButton = document.createElement('button');
+      editButton.className = 'profile-action-button';
+      editButton.type = 'button';
+      editButton.textContent = 'Edit';
+      editButton.setAttribute('aria-label', `Edit ${codeword}`);
+      editButton.addEventListener('click', () => editCodeword(row, index, codeword));
+
+      const deleteButton = document.createElement('button');
+      deleteButton.className = 'profile-action-button';
+      deleteButton.type = 'button';
+      deleteButton.textContent = 'Delete';
+      deleteButton.setAttribute('aria-label', `Delete ${codeword}`);
+      deleteButton.addEventListener('click', () => {
+        codewords.splice(index, 1);
+        saveCodewords();
+        renderCodewords();
+        showCodewordFeedback('Codeword deleted successfully.');
+      });
+
+      actions.append(editButton, deleteButton);
+      row.append(name, actions);
+      activeCodewordsList.append(row);
+    });
+  }
+
+  function editCodeword(row, index, existingCodeword) {
+    row.replaceChildren();
+    const field = document.createElement('div');
+    field.className = 'contact-form-field codeword-edit-field';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = existingCodeword;
+    input.setAttribute('aria-label', `Edit ${existingCodeword}`);
+    const feedback = document.createElement('span');
+    feedback.className = 'codewords-feedback';
+    field.append(input, feedback);
+
+    const actions = document.createElement('div');
+    actions.className = 'codeword-actions';
+    const saveButton = document.createElement('button');
+    saveButton.className = 'profile-action-button';
+    saveButton.type = 'button';
+    saveButton.textContent = 'Save';
+    const cancelButton = document.createElement('button');
+    cancelButton.className = 'profile-action-button';
+    cancelButton.type = 'button';
+    cancelButton.textContent = 'Cancel';
+
+    const saveEdit = () => {
+      const updatedCodeword = normalizeCodeword(input.value);
+      if (!updatedCodeword) {
+        feedback.textContent = 'Please enter a codeword.';
+        return;
+      }
+      if (codewords.some((item, itemIndex) => itemIndex !== index && item === updatedCodeword)) {
+        feedback.textContent = 'Codeword already exists.';
+        return;
+      }
+
+      codewords[index] = updatedCodeword;
+      saveCodewords();
+      renderCodewords();
+      showCodewordFeedback('Codeword updated successfully.');
+    };
+
+    saveButton.addEventListener('click', saveEdit);
+    cancelButton.addEventListener('click', renderCodewords);
+    input.addEventListener('input', () => { feedback.textContent = ''; });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') saveEdit();
+      if (event.key === 'Escape') renderCodewords();
+    });
+    actions.append(saveButton, cancelButton);
+    row.append(field, actions);
+    input.focus();
+    input.select();
+  }
+
+  renderCodewords();
+
+  codewordForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const codeword = normalizeCodeword(codewordInput?.value || '');
+    if (!codeword) {
+      showCodewordFeedback('Please enter a codeword.');
+      return;
+    }
+
+    if (codewords.includes(codeword)) {
+      showCodewordFeedback('Codeword already exists.');
+      return;
+    }
+
+    codewords.push(codeword);
+    saveCodewords();
+    renderCodewords();
+    codewordForm.reset();
+    showCodewordFeedback('Codeword added successfully.');
   });
+
+  codewordInput?.addEventListener('input', () => {
+    showCodewordFeedback('');
+  });
+
+  // User Location map: keep location handling isolated from dashboard features.
+  const dashboardMap = document.querySelector('#dashboard-map');
+  if (dashboardMap) {
+    const showMapMessage = (message) => {
+      const paragraph = document.createElement('p');
+      paragraph.className = 'dashboard-map-message';
+      paragraph.textContent = message;
+      dashboardMap.replaceChildren(paragraph);
+    };
+
+    if (!navigator.geolocation) {
+      showMapMessage('Geolocation is not supported by this browser.');
+    } else {
+      navigator.geolocation.getCurrentPosition((position) => {
+        const { latitude, longitude } = position.coords;
+        const map = document.createElement('iframe');
+        map.title = 'Google Map showing your current location';
+        map.loading = 'lazy';
+        map.referrerPolicy = 'no-referrer-when-downgrade';
+        map.src = `https://www.google.com/maps?q=${encodeURIComponent(`${latitude},${longitude}`)}&z=15&output=embed`;
+        dashboardMap.replaceChildren(map);
+        dashboardMap.setAttribute('role', 'region');
+        dashboardMap.setAttribute('aria-label', 'Map showing your current location');
+      }, (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          showMapMessage('Location access was denied.');
+        } else {
+          showMapMessage('Unable to determine your location.');
+        }
+      }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+    }
+  }
+
+  if (navbarToggle) {
+    navbarToggle.addEventListener('click', () => {
+      const willExpand = navbarToggle.getAttribute('aria-expanded') !== 'true';
+      navbarToggle.setAttribute('aria-expanded', String(willExpand));
+      navbarToggle.setAttribute('aria-label', willExpand ? 'Collapse navigation' : 'Expand navigation');
+      sidebar?.classList.toggle('is-collapsed', !willExpand);
+      if (navbarNavigation) {
+        navbarNavigation.hidden = !willExpand;
+        navbarNavigation.setAttribute('aria-hidden', String(!willExpand));
+      }
+      document.body.classList.toggle('is-navbar-collapsed', !willExpand);
+    });
+  }
 
   // ==========================================
   // 3. PROFILE MANAGEMENT (BACKEND INTEGRATION)
@@ -109,6 +290,7 @@
   }
 
   function renderProfile() {
+    if (!profileFields) return;
     profileFields.replaceChildren();
 
     profileData.forEach((field) => {
@@ -168,24 +350,40 @@
       profileFields.append(wrapper);
     });
 
-    profileAction.textContent = editingProfile ? 'Save Changes' : 'Edit Profile';
-    profileAction.type = 'button';
+    if (profileAction) {
+      profileAction.textContent = editingProfile ? 'Save Changes' : 'Edit Profile';
+      profileAction.type = 'button';
+    }
   }
 
   async function fetchUserProfile() {
     try {
       const res = await fetch(`${API_BASE_URL}/users/device/${deviceToken}`);
-      if (!res.ok) return;
-      const user = await res.json();
-      profileData.forEach((field) => {
-        if (user[field.key]) {
-          field.value = user[field.key];
-        }
-      });
-      renderProfile();
-      addLiveLog(`Hardware paired: Device ID [${deviceToken.substring(0, 8)}...]`);
+      
+      if (res.ok) {
+        const user = await res.json();
+        profileData.forEach((field) => {
+          if (user[field.key]) {
+            field.value = user[field.key];
+          }
+        });
+        renderProfile();
+        addLiveLog(`Hardware paired: Device ID [${deviceToken.substring(0, 8)}...]`);
+      } else if (res.status === 404) {
+        console.log('New device detected. Registering device in database...');
+        await fetch(`${API_BASE_URL}/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            deviceUuid: deviceToken,
+            name: 'New User',
+            phoneNumber: ''
+          })
+        });
+        addLiveLog(`New hardware registered: [${deviceToken.substring(0, 8)}...]`);
+      }
     } catch (e) {
-      console.error('Failed to fetch user profile:', e);
+      console.warn('Backend reachability check deferred:', e);
     }
   }
 
@@ -265,28 +463,6 @@
     }
   }
 
-  async function unlinkDevice() {
-    if (!confirm('Are you sure you want to unlink and delete this device profile?')) return;
-
-    try {
-      await fetch(`${API_BASE_URL}/users/device/${deviceToken}`, {
-        method: 'DELETE'
-      });
-    } catch (e) {
-      console.warn('Network issue during deletion:', e);
-    } finally {
-      // Always purge browser storage and redirect to landing
-      localStorage.removeItem('deviceToken');
-      window.location.replace('/landing/');
-    }
-  }
-
-  // Bind to any reset/logout button in your HTML (e.g. #unlink-device-btn)
-  const unlinkBtn = document.querySelector('#unlink-device-btn');
-  if (unlinkBtn) {
-    unlinkBtn.addEventListener('click', unlinkDevice);
-  }
-
   function addPersonIcon(target) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', '0 0 24 24');
@@ -301,6 +477,7 @@
   }
 
   function renderContacts() {
+    if (!contactsGrid) return;
     contactsGrid.replaceChildren();
 
     if (contacts.length === 0) {
@@ -358,25 +535,31 @@
   }
 
   function closeContactForm() {
+    if (!contactModal || !contactForm) return;
     contactModal.hidden = true;
     contactForm.reset();
     editingContactId = null;
     const focusTarget = lastContactModalOpener?.isConnected ? lastContactModalOpener : openContactFormButton;
-    focusTarget.focus();
+    focusTarget?.focus();
   }
 
   function openContactForm(contact = null, opener = openContactFormButton) {
+    if (!contactModal || !contactForm) return;
     editingContactId = contact?.id ?? null;
     lastContactModalOpener = opener;
     contactForm.reset();
-    contactNameInput.value = contact?.name ?? '';
-    contactPhoneInput.value = contact?.phone ?? '';
-    contactForm.elements.namedItem('emergencyAlerts').checked = contact?.emergencyAlerts ?? true;
-    contactForm.elements.namedItem('locationSharing').checked = contact?.locationSharing ?? true;
-    contactFormTitle.textContent = contact ? 'Edit Contact' : 'Add Contact';
-    contactSubmitButton.textContent = contact ? 'Save Changes' : 'Add Contact';
+    if (contactNameInput) contactNameInput.value = contact?.name ?? '';
+    if (contactPhoneInput) contactPhoneInput.value = contact?.phone ?? '';
+    if (contactForm.elements.namedItem('emergencyAlerts')) {
+      contactForm.elements.namedItem('emergencyAlerts').checked = contact?.emergencyAlerts ?? true;
+    }
+    if (contactForm.elements.namedItem('locationSharing')) {
+      contactForm.elements.namedItem('locationSharing').checked = contact?.locationSharing ?? true;
+    }
+    if (contactFormTitle) contactFormTitle.textContent = contact ? 'Edit Contact' : 'Add Contact';
+    if (contactSubmitButton) contactSubmitButton.textContent = contact ? 'Save Changes' : 'Add Contact';
     contactModal.hidden = false;
-    contactNameInput.focus();
+    contactNameInput?.focus();
   }
 
   if (contactsGrid && contactModal && contactForm && openContactFormButton && cancelContactFormButton) {
@@ -384,7 +567,7 @@
 
     openContactFormButton.addEventListener('click', () => openContactForm());
     cancelContactFormButton.addEventListener('click', closeContactForm);
-    contactModal.querySelector('[data-close-contact-modal]').addEventListener('click', closeContactForm);
+    contactModal.querySelector('[data-close-contact-modal]')?.addEventListener('click', closeContactForm);
 
     contactsGrid.addEventListener('click', async (event) => {
       const action = event.target.closest('[data-contact-action]');
@@ -427,7 +610,6 @@
 
       try {
         if (editingContactId === null) {
-          // POST /api/contacts
           const res = await fetch(`${API_BASE_URL}/contacts`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -439,7 +621,6 @@
             addLiveLog(`New emergency contact persisted to database: ${name}`);
           }
         } else {
-          // PUT /api/contacts/{id}
           const res = await fetch(`${API_BASE_URL}/contacts/${editingContactId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -478,7 +659,9 @@
     text.textContent = message.trim();
     entry.append(timestamp, text);
     dashboardLogList.append(entry);
-    dashboardLogScroll.scrollTop = dashboardLogScroll.scrollHeight;
+    if (dashboardLogScroll) {
+      dashboardLogScroll.scrollTop = dashboardLogScroll.scrollHeight;
+    }
   }
 
   function setDashboardAlert(message, isCritical = true) {
@@ -496,6 +679,7 @@
   const knownAlertIds = new Set();
 
   function renderAlertHistoryItem(alert) {
+    if (!dashboardHistoryList) return;
     if (noAlertsPlaceholder && noAlertsPlaceholder.parentNode) {
       noAlertsPlaceholder.remove();
     }
@@ -551,20 +735,23 @@
     }
   }
 
-  // Begin polling every 3 seconds
   setInterval(pollAlerts, 3000);
   pollAlerts();
 
-  // Navigation switching
+  // View Navigation Switcher
   function showAppView(view) {
-    dashboardView.hidden = view !== 'dashboard';
-    profileView.hidden = view !== 'profile';
-    contactsView.hidden = view !== 'contacts';
+    if (dashboardView) dashboardView.hidden = view !== 'dashboard';
+    if (profileView) profileView.hidden = view !== 'profile';
+    if (contactsView) contactsView.hidden = view !== 'contacts';
+    if (codewordsView) codewordsView.hidden = view !== 'codewords';
+
     document.body.classList.toggle('is-dashboard-view', view === 'dashboard');
     document.body.classList.toggle('is-profile-view', view === 'profile');
     document.body.classList.toggle('is-contacts-view', view === 'contacts');
+    document.body.classList.toggle('is-codewords-view', view === 'codewords');
 
-    [[dashboardNav, 'dashboard'], [contactsNav, 'contacts'], [profileNav, 'profile']].forEach(([item, itemView]) => {
+    [[dashboardNav, 'dashboard'], [contactsNav, 'contacts'], [profileNav, 'profile'], [codewordsNav, 'codewords']].forEach(([item, itemView]) => {
+      if (!item) return;
       const active = view === itemView;
       item.setAttribute('aria-pressed', String(active));
       if (active) item.setAttribute('aria-current', 'page');
@@ -572,7 +759,8 @@
     });
   }
 
-  dashboardNav.addEventListener('click', () => showAppView('dashboard'));
-  profileNav.addEventListener('click', () => showAppView('profile'));
-  contactsNav.addEventListener('click', () => showAppView('contacts'));
+  dashboardNav?.addEventListener('click', () => showAppView('dashboard'));
+  profileNav?.addEventListener('click', () => showAppView('profile'));
+  contactsNav?.addEventListener('click', () => showAppView('contacts'));
+  codewordsNav?.addEventListener('click', () => showAppView('codewords'));
 })();

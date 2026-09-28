@@ -44,6 +44,14 @@
         </svg>
         <span>Profile</span>
       </button>
+      <button class="profile-nav-item" id="codewords-nav-toggle" type="button" aria-pressed="false"
+        aria-controls="codewords-view">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+          <path d="M4 5.5h16v11H11l-5 3v-3H4z" />
+          <path d="M8 10h.01M12 10h.01M16 10h.01" />
+        </svg>
+        <span>Codewords</span>
+      </button>
     </div>
   </nav>
 
@@ -82,6 +90,13 @@
             </ul>
           </div>
         </section>
+
+        <section class="dashboard-panel" id="dashboard-location-panel" aria-labelledby="dashboard-location-title">
+          <h2 id="dashboard-location-title">User Location</h2>
+          <div class="dashboard-map" id="dashboard-map" role="status" aria-live="polite">
+            <p class="dashboard-map-message">Finding your location…</p>
+          </div>
+        </section>
       </div>
     </section>
 
@@ -97,6 +112,33 @@
               <button class="profile-action-button" id="profile-edit-button" type="button">Edit Profile</button>
             </div>
           </form>
+        </section>
+      </div>
+    </section>
+
+    <!-- CODEWORDS VIEW -->
+    <section class="profile-view codewords-view" id="codewords-view" aria-labelledby="codewords-title" hidden>
+      <div class="profile-content codewords-content">
+        <h1 id="codewords-title" tabindex="-1">Codewords</h1>
+        <p class="codewords-description">Set a personal codeword that can be used to trigger a distress signal during an emergency.</p>
+
+        <section class="profile-card" aria-labelledby="codeword-form-title">
+          <h2 id="codeword-form-title" class="codewords-card-title">Add Codeword</h2>
+          <form id="codeword-form" novalidate>
+            <div class="contact-form-field">
+              <label for="codeword-input">Set Your Codeword</label>
+              <input id="codeword-input" name="codeword" type="text" placeholder="Enter your codeword" autocomplete="off" aria-describedby="codeword-feedback">
+              <span class="codewords-feedback" id="codeword-feedback" aria-live="polite"></span>
+            </div>
+            <div class="profile-actions">
+              <button class="profile-action-button" type="submit">Add </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="profile-card" aria-labelledby="active-codeword-title">
+          <h2 id="active-codeword-title" class="codewords-card-title">Codeword List</h2>
+          <ul class="codewords-list" id="active-codewords-list" aria-live="polite"></ul>
         </section>
       </div>
     </section>
