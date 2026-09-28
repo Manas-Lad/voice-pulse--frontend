@@ -12,7 +12,7 @@
     deviceToken = localStorage.getItem('deviceToken');
   }
 
-  // If testing in localhost without a mobile device paired, create a real RFC-4122 UUID
+  // If testing on localhost without an active mobile token, provide a valid RFC-4122 UUID
   if (!deviceToken && (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')) {
     deviceToken = crypto.randomUUID();
     localStorage.setItem('deviceToken', deviceToken);
@@ -64,7 +64,7 @@
   }
 
   // ==========================================
-  // 3. BACKEND CODEWORDS SYNC (SINGLE ROW ARRAY)
+  // 3. CODEWORDS SYNC (POSTGRESQL SINGLE ROW)
   // ==========================================
   async function fetchCodewordsFromBackend() {
     try {
@@ -227,7 +227,7 @@
   }
 
   // ==========================================
-  // 5. PROFILE MANAGEMENT (UUID COMPLIANT)
+  // 5. PROFILE MANAGEMENT
   // ==========================================
   const profileForm = document.querySelector('#profile-form');
   const profileFields = document.querySelector('#profile-fields');
@@ -602,7 +602,7 @@
   }
 
   // ==========================================
-  // 7. LIVE LOGS & ALERT POLLING
+  // 7. ALERT POLLING (ROBUST CLIENT-SIDE FILTER)
   // ==========================================
   function addLiveLog(message) {
     if (!dashboardLogList || typeof message !== 'string' || !message.trim()) return;
