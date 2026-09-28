@@ -662,18 +662,13 @@
 
   async function pollAlerts() {
     try {
-      let res = await fetch(`${API_BASE_URL}/alerts/device/${deviceToken}`);
-      let deviceAlerts = [];
+      const res = await fetch(`${API_BASE_URL}/alerts`);
+      if (!res.ok) return;
 
-      if (res.ok) {
-        deviceAlerts = await res.json();
-      } else {
-        res = await fetch(`${API_BASE_URL}/alerts`);
-        if (res.ok) {
-          const allAlerts = await res.json();
-          deviceAlerts = allAlerts.filter(a => a.deviceUuid === deviceToken);
-        }
-      }
+      const allAlerts = await res.json();
+      const deviceAlerts = Array.isArray(allAlerts)
+        ? allAlerts.filter(a => a.deviceUuid === deviceToken || a.userId === deviceToken)
+        : [];
 
       deviceAlerts.forEach((alert) => {
         if (!knownAlertIds.has(alert.id)) {
