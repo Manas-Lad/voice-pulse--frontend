@@ -13,14 +13,12 @@
     deviceToken = localStorage.getItem('deviceToken');
   }
 
-  // If testing on localhost without an active mobile token, provide a valid RFC-4122 UUID
   if (!deviceToken && (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')) {
     deviceToken = crypto.randomUUID();
     localStorage.setItem('deviceToken', deviceToken);
     console.info('Initialized local test session with valid hardware UUID:', deviceToken);
   }
 
-  // Redirect to landing ONLY if no device token is present
   if (!deviceToken) {
     window.location.replace('/');
     return;
@@ -52,68 +50,26 @@
   const codewordFeedback = document.querySelector('#codeword-feedback');
   const activeCodewordsList = document.querySelector('#active-codewords-list');
 
-  // Helper function to format timestamp cleanly in IST
+  // Sidebar Toggle Button Click Listener
+  navbarToggle?.addEventListener('click', () => {
+    const isCollapsed = sidebar?.classList.toggle('is-collapsed');
+    document.body.classList.toggle('is-navbar-collapsed', isCollapsed);
+    navbarToggle.setAttribute('aria-expanded', String(!isCollapsed));
+  });
+
+  // Clean IST timestamp formatter
   function formatTimestampIST(rawTimestamp) {
     if (!rawTimestamp) return 'Just now';
-
     let date;
     if (typeof rawTimestamp === 'number') {
       date = new Date(rawTimestamp);
     } else {
-      // Strip any trailing Z so browser does not treat IST time as UTC
       const cleanStr = String(rawTimestamp).replace(/Z$/i, '');
       date = new Date(cleanStr);
     }
-
     return isNaN(date.getTime()) 
       ? String(rawTimestamp) 
       : date.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
-  }
-
-  async function showSharedAlert(token) {
-    const main = document.createElement('main');
-    main.className = 'dashboard-content';
-    main.style.cssText = 'max-width:760px;margin:48px auto;padding:24px;font-family:system-ui,sans-serif;color:#17211f';
-    const title = document.createElement('h1');
-    title.textContent = 'Shared Voice Pulse distress alert';
-    const details = document.createElement('p');
-    details.textContent = 'Loading alert details…';
-    main.append(title, details);
-    document.body.replaceChildren(main);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/alerts/shared/${encodeURIComponent(token)}`);
-      if (!response.ok) throw new Error('This alert link is invalid or has expired.');
-      const alert = await response.json();
-      details.textContent = `Alert received ${formatTimestampIST(alert.timestamp)}.`;
-
-      if (Number.isFinite(alert.latitude) && Number.isFinite(alert.longitude)) {
-        const coordinates = `${alert.latitude},${alert.longitude}`;
-        const mapLink = document.createElement('a');
-        mapLink.href = `https://maps.google.com/?q=${encodeURIComponent(coordinates)}`;
-        mapLink.target = '_blank';
-        mapLink.rel = 'noopener noreferrer';
-        mapLink.textContent = 'Open sender’s location in Google Maps';
-        mapLink.style.cssText = 'display:inline-block;margin:8px 0 16px;color:#075e54;font-weight:700';
-        main.append(mapLink);
-
-        if (Number.isFinite(alert.locationAccuracy)) {
-          const accuracy = document.createElement('p');
-          accuracy.textContent = `Reported accuracy: about ${Math.round(alert.locationAccuracy)} metres.`;
-          main.append(accuracy);
-        }
-      } else {
-        const unavailable = document.createElement('p');
-        unavailable.textContent = 'Location was unavailable when this alert was sent.';
-        main.append(unavailable);
-      }
-
-      const signals = document.createElement('p');
-      signals.textContent = `Signals: ${(alert.signals || []).join(', ') || 'Distress signal'}`;
-      main.append(signals);
-    } catch (error) {
-      details.textContent = error.message || 'Could not load this alert.';
-    }
   }
 
   let codewords = [];
@@ -127,7 +83,7 @@
   }
 
   // ==========================================
-  // 3. CODEWORDS SYNC (POSTGRESQL SINGLE ROW)
+  // 3. CODEWORDS SYNC
   // ==========================================
   async function fetchCodewordsFromBackend() {
     try {
@@ -218,26 +174,20 @@
   codewordForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const codeword = normalizeCodeword(codewordInput?.value || '');
-
     if (!codeword) {
       showCodewordFeedback('Please enter a codeword.');
       return;
     }
-
     if (codewords.includes(codeword)) {
       showCodewordFeedback('Codeword already exists.');
       return;
     }
-
     showCodewordFeedback('Saving...');
     await appendCodewordsToBackend([codeword]);
     codewordForm.reset();
   });
 
-  codewordInput?.addEventListener('input', () => {
-    showCodewordFeedback('');
-  });
-
+  codewordInput?.addEventListener('input', () => showCodewordFeedback(''));
   fetchCodewordsFromBackend();
 
   // ==========================================
@@ -304,7 +254,6 @@
         control.autocomplete = field.key === 'name' ? 'name'
           : field.key === 'phoneNumber' ? 'tel'
             : field.key === 'address' ? 'street-address' : 'off';
-        control.setAttribute('aria-describedby', `${fieldId}-error`);
         wrapper.append(control);
       } else {
         const label = document.createElement('span');
@@ -317,31 +266,21 @@
           : (field.value || 'Not set');
         wrapper.append(label, value);
       }
-
-      const error = document.createElement('span');
-      error.className = 'profile-error';
-      error.id = `${fieldId}-error`;
-      error.setAttribute('aria-live', 'polite');
-      wrapper.append(error);
       profileFields.append(wrapper);
     });
 
     if (profileAction) {
       profileAction.textContent = editingProfile ? 'Save Changes' : 'Edit Profile';
-      profileAction.type = 'button';
     }
   }
 
   async function fetchUserProfile() {
     try {
       const res = await fetch(`${API_BASE_URL}/users/device/${deviceToken}`);
-
       if (res.ok) {
         const user = await res.json();
         profileData.forEach((field) => {
-          if (user[field.key]) {
-            field.value = user[field.key];
-          }
+          if (user[field.key]) field.value = user[field.key];
         });
         renderProfile();
         addLiveLog(`Hardware paired: [${deviceToken.substring(0, 8)}...]`);
@@ -349,9 +288,7 @@
         await fetch(`${API_BASE_URL}/users/register-device`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            deviceUuid: deviceToken
-          })
+          body: JSON.stringify({ deviceUuid: deviceToken })
         });
         addLiveLog(`Hardware provisioned: [${deviceToken.substring(0, 8)}...]`);
       }
@@ -367,9 +304,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedPayload)
       });
-      if (res.ok) {
-        addLiveLog('Profile synchronized to database.');
-      }
+      if (res.ok) addLiveLog('Profile synchronized to database.');
     } catch (e) {
       console.error('Failed to save profile:', e);
     }
@@ -392,14 +327,12 @@
     profileForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       const updatedPayload = {};
-
       profileData.forEach((field) => {
         const control = profileForm.elements.namedItem(field.key);
         const val = control ? control.value.trim() : '';
         field.value = val;
         updatedPayload[field.key] = val;
       });
-
       editingProfile = false;
       renderProfile();
       await saveUserProfile(updatedPayload);
@@ -421,7 +354,6 @@
 
   let contacts = [];
   let editingContactId = null;
-  let lastContactModalOpener = null;
 
   async function fetchContactsFromBackend() {
     try {
@@ -433,19 +365,6 @@
     } catch (e) {
       console.error('Failed to load contacts:', e);
     }
-  }
-
-  function addPersonIcon(target) {
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('fill', 'none');
-    svg.setAttribute('aria-hidden', 'true');
-    const head = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    head.setAttribute('cx', '12'); head.setAttribute('cy', '8'); head.setAttribute('r', '3.5');
-    const body = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    body.setAttribute('d', 'M5 20v-1.5a7 7 0 0 1 14 0V20z');
-    svg.append(head, body);
-    target.append(svg);
   }
 
   function renderContacts() {
@@ -468,40 +387,27 @@
 
       const identity = document.createElement('div');
       identity.className = 'trusted-contact-identity';
-      const icon = document.createElement('span');
-      icon.className = 'trusted-contact-icon';
-      addPersonIcon(icon);
       const heading = document.createElement('h2');
       heading.textContent = contact.name;
-      identity.append(icon, heading);
+      identity.append(heading);
 
       const phone = document.createElement('p');
       phone.className = 'trusted-contact-phone';
       phone.textContent = contact.phone || contact.phoneNumber;
 
-      const features = document.createElement('ul');
-      features.className = 'trusted-contact-features';
-      if (contact.emergencyAlerts) {
-        const item = document.createElement('li');
-        item.textContent = 'Emergency alerts';
-        features.append(item);
-      }
-      if (contact.locationSharing) {
-        const item = document.createElement('li');
-        item.textContent = 'Location sharing';
-        features.append(item);
-      }
-
       const actions = document.createElement('div');
       actions.className = 'trusted-contact-actions';
       const editButton = document.createElement('button');
-      editButton.type = 'button'; editButton.dataset.contactAction = 'edit';
+      editButton.type = 'button';
+      editButton.dataset.contactAction = 'edit';
       editButton.textContent = 'Edit';
       const removeButton = document.createElement('button');
-      removeButton.type = 'button'; removeButton.dataset.contactAction = 'remove';
+      removeButton.type = 'button';
+      removeButton.dataset.contactAction = 'remove';
       removeButton.textContent = 'Remove';
       actions.append(editButton, removeButton);
-      card.append(identity, phone, features, actions);
+
+      card.append(identity, phone, actions);
       contactsGrid.append(card);
     });
   }
@@ -511,23 +417,14 @@
     contactModal.hidden = true;
     contactForm.reset();
     editingContactId = null;
-    const focusTarget = lastContactModalOpener?.isConnected ? lastContactModalOpener : openContactFormButton;
-    focusTarget?.focus();
   }
 
-  function openContactForm(contact = null, opener = openContactFormButton) {
+  function openContactForm(contact = null) {
     if (!contactModal || !contactForm) return;
     editingContactId = contact?.id ?? null;
-    lastContactModalOpener = opener;
     contactForm.reset();
     if (contactNameInput) contactNameInput.value = contact?.name ?? '';
     if (contactPhoneInput) contactPhoneInput.value = contact?.phone || contact?.phoneNumber || '';
-    if (contactForm.elements.namedItem('emergencyAlerts')) {
-      contactForm.elements.namedItem('emergencyAlerts').checked = contact?.emergencyAlerts ?? true;
-    }
-    if (contactForm.elements.namedItem('locationSharing')) {
-      contactForm.elements.namedItem('locationSharing').checked = contact?.locationSharing ?? true;
-    }
     if (contactFormTitle) contactFormTitle.textContent = contact ? 'Edit Contact' : 'Add Contact';
     if (contactSubmitButton) contactSubmitButton.textContent = contact ? 'Save Changes' : 'Add Contact';
     contactModal.hidden = false;
@@ -536,7 +433,6 @@
 
   if (contactsGrid && contactModal && contactForm && openContactFormButton && cancelContactFormButton) {
     fetchContactsFromBackend();
-
     openContactFormButton.addEventListener('click', () => openContactForm());
     cancelContactFormButton.addEventListener('click', closeContactForm);
     contactModal.querySelector('[data-close-contact-modal]')?.addEventListener('click', closeContactForm);
@@ -549,7 +445,7 @@
       if (!contact) return;
 
       if (action.dataset.contactAction === 'edit') {
-        openContactForm(contact, action);
+        openContactForm(contact);
       } else if (action.dataset.contactAction === 'remove' && window.confirm('Remove this emergency contact?')) {
         try {
           const res = await fetch(`${API_BASE_URL}/contacts/${contact.id}`, { method: 'DELETE' });
@@ -573,12 +469,9 @@
       const payload = {
         name,
         phone,
-        emergencyAlerts: contactForm.elements.namedItem('emergencyAlerts').checked,
-        locationSharing: contactForm.elements.namedItem('locationSharing').checked,
+        emergencyAlerts: contactForm.elements.namedItem('emergencyAlerts')?.checked ?? true,
+        locationSharing: contactForm.elements.namedItem('locationSharing')?.checked ?? true,
       };
-
-      contactSubmitButton.disabled = true;
-      contactSubmitButton.textContent = 'Saving...';
 
       try {
         if (editingContactId === null) {
@@ -608,9 +501,6 @@
         closeContactForm();
       } catch (err) {
         console.error('Error saving contact to backend:', err);
-      } finally {
-        contactSubmitButton.disabled = false;
-        contactSubmitButton.textContent = editingContactId ? 'Save Changes' : 'Add Contact';
       }
     });
   }
