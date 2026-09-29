@@ -5,17 +5,11 @@
   const urlParams = new URLSearchParams(window.location.search);
   const API_BASE_URL = 'https://voice-pulse-backend.onrender.com/api';
   const alertToken = urlParams.get('alertToken');
-
-  if (alertToken) {
-    showSharedAlert(alertToken);
-    return;
-  }
-
   let deviceToken = urlParams.get('deviceToken');
 
   if (deviceToken) {
     localStorage.setItem('deviceToken', deviceToken);
-    window.history.replaceState({}, document.title, window.location.pathname);
+    // Keep parameters in address bar or clean up gracefully
   } else {
     deviceToken = localStorage.getItem('deviceToken');
   }
@@ -27,7 +21,7 @@
     console.info('Initialized local test session with valid hardware UUID:', deviceToken);
   }
 
-  // Redirect to landing if no device token is present
+  // Redirect to landing ONLY if no device token is present
   if (!deviceToken) {
     window.location.replace('/landing/');
     return;
@@ -236,52 +230,72 @@
   fetchCodewordsFromBackend();
 
   // ==========================================
-  // 4. USER LOCATION MAP
+  // 4. USER / ALERT LOCATION MAP
   // ==========================================
   const dashboardMap = document.querySelector('#dashboard-map');
-  if (dashboardMap) {
-    const showMapMessage = (message) => {
-      const paragraph = document.createElement('p');
-      paragraph.className = 'dashboard-map-message';
-      paragraph.textContent = message;
-      dashboardMap.replaceChildren(paragraph);
-    };
 
+  const showMapMessage = (message) => {
+    if (!dashboardMap) return;
+    const paragraph = document.createElement('p');
+    paragraph.className = 'dashboard-map-message';
+    paragraph.textContent = message;
+    dashboardMap.replaceChildren(paragraph);
+  };
+
+  const renderMapIframe = (latitude, longitude, title = 'Location map') => {
+    if (!dashboardMap) return;
+    const coordinates = `${latitude},${longitude}`;
+    const map = document.createElement('iframe');
+    map.title = title;
+    map.loading = 'lazy';
+    map.referrerPolicy = 'no-referrer-when-downgrade';
+    map.src = `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&z=15&output=embed`;
+    dashboardMap.replaceChildren(map);
+    dashboardMap.setAttribute('role', 'region');
+    dashboardMap.setAttribute('aria-label', title);
+  };
+
+  // Priority 1: If opened via SMS emergency link, load the incident location
+  if (alertToken) {
+    showMapMessage('Loading emergency alert location...');
+    fetch(`${API_BASE_URL}/alerts/shared/${encodeURIComponent(alertToken)}`)
+      .then(res => {
+        if (!res.ok) throw new Error('Shared alert link expired or invalid.');
+        return res.json();
+      })
+      .then(alert => {
+        if (Number.isFinite(alert.latitude) && Number.isFinite(alert.longitude)) {
+          renderMapIframe(alert.latitude, alert.longitude, 'Emergency distress location');
+          setDashboardAlert(`CRITICAL ALERT: Viewing distress location for event #${alert.id}`, true);
+        } else {
+          showMapMessage('Coordinates were not available for this alert.');
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load shared alert location:', err);
+        showMapMessage('Could not retrieve distress coordinates.');
+      });
+  } 
+  // Priority 2: Fall back to browser geolocation when browsing normally
+  else if (dashboardMap) {
     if (!navigator.geolocation) {
       showMapMessage('Geolocation is not supported by this browser.');
     } else {
-      navigator.geolocation.getCurrentPosition((position) => {
-        const { latitude, longitude } = position.coords;
-        const map = document.createElement('iframe');
-        map.title = 'Current location map';
-        map.loading = 'lazy';
-        map.referrerPolicy = 'no-referrer-when-downgrade';
-        map.src = `https://www.google.com/maps?q=${encodeURIComponent(`${latitude},${longitude}`)}&z=15&output=embed`;
-        dashboardMap.replaceChildren(map);
-        dashboardMap.setAttribute('role', 'region');
-        dashboardMap.setAttribute('aria-label', 'Map showing current location');
-      }, (error) => {
-        if (error.code === error.PERMISSION_DENIED) {
-          showMapMessage('Location access was denied.');
-        } else {
-          showMapMessage('Unable to determine location.');
-        }
-      }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          renderMapIframe(latitude, longitude, 'Current location map');
+        },
+        (error) => {
+          if (error.code === error.PERMISSION_DENIED) {
+            showMapMessage('Location access was denied.');
+          } else {
+            showMapMessage('Unable to determine location.');
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
     }
-  }
-
-  if (navbarToggle) {
-    navbarToggle.addEventListener('click', () => {
-      const willExpand = navbarToggle.getAttribute('aria-expanded') !== 'true';
-      navbarToggle.setAttribute('aria-expanded', String(willExpand));
-      navbarToggle.setAttribute('aria-label', willExpand ? 'Collapse navigation' : 'Expand navigation');
-      sidebar?.classList.toggle('is-collapsed', !willExpand);
-      if (navbarNavigation) {
-        navbarNavigation.hidden = !willExpand;
-        navbarNavigation.setAttribute('aria-hidden', String(!willExpand));
-      }
-      document.body.classList.toggle('is-navbar-collapsed', !willExpand);
-    });
   }
 
   // ==========================================
