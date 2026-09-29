@@ -671,7 +671,12 @@ body.is-dashboard-view .dashboard-view {
   display: grid;
   gap: 0;
   margin: 0;
-  list-style: none
+  list-style: none;
+  max-height: 380px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  scroll-behavior: smooth;
 }
 .dashboard-history-list-div {
   display: flex;

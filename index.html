@@ -5,11 +5,9 @@
   <title>Voice Pulse</title>
   <script>
     (() => {
-      // 1. Grab token from URL query (?deviceToken=...) or localStorage
       const params = new URLSearchParams(window.location.search);
       let queryToken = params.get('deviceToken');
 
-      // Fallback regex in case URLSearchParams missed it
       if (!queryToken) {
         const match = window.location.href.match(/[?&]deviceToken=([^&#]*)/);
         if (match) queryToken = decodeURIComponent(match[1]);
@@ -19,13 +17,10 @@
       const token = queryToken || storedToken;
 
       if (token && token !== "null" && token !== "undefined") {
-        // Persist immediately before navigating
         localStorage.setItem('deviceToken', token);
-        
-        // Go directly to dashboard
-        window.location.replace('/dashboard/');
+        // Forward the exact query string so alertToken isn't lost
+        window.location.replace('/dashboard/' + window.location.search);
       } else {
-        // First-time / unauthenticated user -> go to landing page
         window.location.replace('/landing/');
       }
     })();
