@@ -244,93 +244,6 @@
   fetchCodewordsFromBackend();
 
   // ==========================================
-  // 4. USER / ALERT LOCATION MAP
-  // ==========================================
-  const dashboardMap = document.querySelector('#dashboard-map');
-
-  const showMapMessage = (message) => {
-    if (!dashboardMap) return;
-    const paragraph = document.createElement('p');
-    paragraph.className = 'dashboard-map-message';
-    paragraph.textContent = message;
-    dashboardMap.replaceChildren(paragraph);
-  };
-
-  const renderMapIframe = (latitude, longitude, title = 'Location map') => {
-    if (!dashboardMap) return;
-    const coordinates = `${latitude},${longitude}`;
-    const map = document.createElement('iframe');
-    map.title = title;
-    map.loading = 'lazy';
-    map.referrerPolicy = 'no-referrer-when-downgrade';
-    map.style.width = '100%';
-    map.style.height = '100%';
-    map.style.minHeight = '300px';
-    map.style.border = '0';
-    map.src = `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&z=16&output=embed`;
-    dashboardMap.replaceChildren(map);
-    dashboardMap.setAttribute('role', 'region');
-    dashboardMap.setAttribute('aria-label', title);
-  };
-
-  let hasPlottedAlertLocation = false;
-
-  // PRIORITY 1: Check if alertToken is passed via SMS link
-  if (alertToken) {
-    showMapMessage('Loading emergency event location...');
-    fetch(`${API_BASE_URL}/alerts/shared/${encodeURIComponent(alertToken)}`)
-      .then(res => {
-        if (!res.ok) throw new Error('Shared alert link expired or invalid.');
-        return res.json();
-      })
-      .then(alert => {
-        if (Number.isFinite(alert.latitude) && Number.isFinite(alert.longitude)) {
-          hasPlottedAlertLocation = true;
-          renderMapIframe(alert.latitude, alert.longitude, 'Victim distress location');
-          setDashboardAlert(`CRITICAL ALERT: Distress event detected (${alert.signals?.join(', ') || 'SOS'})`, true);
-        } else {
-          showMapMessage('Coordinates were not recorded with this distress alert.');
-        }
-      })
-      .catch(err => {
-        console.warn('Could not load shared alert location:', err);
-        fallbackToRecentDeviceAlertLocation();
-      });
-  } else {
-    // If no alertToken, inspect the device's latest alert first before touching browser GPS
-    fallbackToRecentDeviceAlertLocation();
-  }
-
-  // PRIORITY 2: Query the database for the victim's most recent alert coordinates
-  async function fallbackToRecentDeviceAlertLocation() {
-    showMapMessage('Syncing incident location from database...');
-    try {
-      const res = await fetch(`${API_BASE_URL}/alerts`);
-      if (res.ok) {
-        const allAlerts = await res.json();
-        const deviceAlerts = Array.isArray(allAlerts)
-          ? allAlerts.filter(a => a.deviceUuid === deviceToken || a.userId === deviceToken)
-          : [];
-
-        const latestWithCoords = deviceAlerts.reverse().find(a => Number.isFinite(a.latitude) && Number.isFinite(a.longitude));
-
-        if (latestWithCoords) {
-          hasPlottedAlertLocation = true;
-          renderMapIframe(latestWithCoords.latitude, latestWithCoords.longitude, 'Latest incident location');
-          return;
-        }
-      }
-    } catch (e) {
-      console.warn('Could not fetch device alerts for location:', e);
-    }
-
-    // PRIORITY 3: If no distress events exist in the database, display empty state
-    if (!hasPlottedAlertLocation) {
-      showMapMessage('No distress events logged yet. Waiting for mobile alert...');
-    }
-  }
-
-  // ==========================================
   // 5. PROFILE MANAGEMENT
   // ==========================================
   const profileForm = document.querySelector('#profile-form');
@@ -790,11 +703,6 @@
           renderAlertHistoryItem(alert);
           setDashboardAlert(`CRITICAL ALERT: Distress event detected (${alert.signals?.join(', ') || 'Voice Stress'})`, true);
           addLiveLog(`[SOS ALERT INGESTED] Event #${alert.id} received.`);
-
-          // Dynamically re-center map to the victim's location when an alert arrives
-          if (Number.isFinite(alert.latitude) && Number.isFinite(alert.longitude)) {
-            renderMapIframe(alert.latitude, alert.longitude, 'Live incident location');
-          }
         }
       });
     } catch (e) {
