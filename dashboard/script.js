@@ -55,13 +55,16 @@
   // Helper function to format timestamp cleanly in IST
   function formatTimestampIST(rawTimestamp) {
     if (!rawTimestamp) return 'Just now';
+
     let date;
     if (typeof rawTimestamp === 'number') {
       date = new Date(rawTimestamp);
     } else {
-      const isoStr = String(rawTimestamp).endsWith('Z') ? rawTimestamp : `${rawTimestamp}Z`;
-      date = new Date(isoStr);
+      // Strip any trailing Z so browser does not treat IST time as UTC
+      const cleanStr = String(rawTimestamp).replace(/Z$/i, '');
+      date = new Date(cleanStr);
     }
+
     return isNaN(date.getTime()) 
       ? String(rawTimestamp) 
       : date.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
@@ -92,14 +95,8 @@
         mapLink.rel = 'noopener noreferrer';
         mapLink.textContent = 'Open sender’s location in Google Maps';
         mapLink.style.cssText = 'display:inline-block;margin:8px 0 16px;color:#075e54;font-weight:700';
-        const map = document.createElement('iframe');
-        map.title = 'Map showing the distress location';
-        map.loading = 'lazy';
-        map.width = '100%';
-        map.height = '380';
-        map.style.border = '0';
-        map.src = `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&z=16&output=embed`;
-        main.append(mapLink, map);
+        main.append(mapLink);
+
         if (Number.isFinite(alert.locationAccuracy)) {
           const accuracy = document.createElement('p');
           accuracy.textContent = `Reported accuracy: about ${Math.round(alert.locationAccuracy)} metres.`;
@@ -244,7 +241,7 @@
   fetchCodewordsFromBackend();
 
   // ==========================================
-  // 5. PROFILE MANAGEMENT
+  // 4. PROFILE MANAGEMENT
   // ==========================================
   const profileForm = document.querySelector('#profile-form');
   const profileFields = document.querySelector('#profile-fields');
@@ -410,7 +407,7 @@
   }
 
   // ==========================================
-  // 6. TRUSTED CONTACTS
+  // 5. TRUSTED CONTACTS
   // ==========================================
   const contactsGrid = document.querySelector('#contacts-grid');
   const contactModal = document.querySelector('#contact-modal');
@@ -619,7 +616,7 @@
   }
 
   // ==========================================
-  // 7. ALERT POLLING & REAL-TIME MAP SYNC
+  // 6. ALERT POLLING & HISTORY RENDERING
   // ==========================================
   function addLiveLog(message) {
     if (!dashboardLogList || typeof message !== 'string' || !message.trim()) return;
@@ -714,7 +711,7 @@
   pollAlerts();
 
   // ==========================================
-  // 8. VIEW SWITCHER
+  // 7. VIEW SWITCHER
   // ==========================================
   function showAppView(view) {
     if (dashboardView) dashboardView.hidden = view !== 'dashboard';
