@@ -64,7 +64,7 @@
     }
     return isNaN(date.getTime()) 
       ? String(rawTimestamp) 
-      : date.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' });
+      : date.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
   }
 
   async function showSharedAlert(token) {
