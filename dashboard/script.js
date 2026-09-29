@@ -23,7 +23,7 @@
 
   // Redirect to landing ONLY if no device token is present
   if (!deviceToken) {
-    window.location.replace('/landing/');
+    window.location.replace('/');
     return;
   }
 
