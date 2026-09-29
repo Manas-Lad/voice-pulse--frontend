@@ -3,6 +3,14 @@
   // 1. HARDWARE UUID CHECK & ROUTE GUARD
   // ==========================================
   const urlParams = new URLSearchParams(window.location.search);
+  const API_BASE_URL = 'https://voice-pulse-backend.onrender.com/api';
+  const alertToken = urlParams.get('alertToken');
+
+  if (alertToken) {
+    showSharedAlert(alertToken);
+    return;
+  }
+
   let deviceToken = urlParams.get('deviceToken');
 
   if (deviceToken) {
@@ -24,8 +32,6 @@
     window.location.replace('/landing/');
     return;
   }
-
-  const API_BASE_URL = 'https://voice-pulse-backend.onrender.com/api';
 
   // ==========================================
   // 2. DOM ELEMENTS
@@ -52,6 +58,58 @@
   const codewordInput = document.querySelector('#codeword-input');
   const codewordFeedback = document.querySelector('#codeword-feedback');
   const activeCodewordsList = document.querySelector('#active-codewords-list');
+
+  async function showSharedAlert(token) {
+    const main = document.createElement('main');
+    main.className = 'dashboard-content';
+    main.style.cssText = 'max-width:760px;margin:48px auto;padding:24px;font-family:system-ui,sans-serif;color:#17211f';
+    const title = document.createElement('h1');
+    title.textContent = 'Shared Voice Pulse distress alert';
+    const details = document.createElement('p');
+    details.textContent = 'Loading alert details…';
+    main.append(title, details);
+    document.body.replaceChildren(main);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/alerts/shared/${encodeURIComponent(token)}`);
+      if (!response.ok) throw new Error('This alert link is invalid or has expired.');
+      const alert = await response.json();
+      details.textContent = `Alert received ${alert.timestamp ? new Date(alert.timestamp).toLocaleString() : 'recently'}.`;
+
+      if (Number.isFinite(alert.latitude) && Number.isFinite(alert.longitude)) {
+        const coordinates = `${alert.latitude},${alert.longitude}`;
+        const mapLink = document.createElement('a');
+        mapLink.href = `https://maps.google.com/?q=${encodeURIComponent(coordinates)}`;
+        mapLink.target = '_blank';
+        mapLink.rel = 'noopener noreferrer';
+        mapLink.textContent = 'Open sender’s location in Maps';
+        mapLink.style.cssText = 'display:inline-block;margin:8px 0 16px;color:#075e54;font-weight:700';
+        const map = document.createElement('iframe');
+        map.title = 'Map showing the alert location';
+        map.loading = 'lazy';
+        map.width = '100%';
+        map.height = '380';
+        map.style.border = '0';
+        map.src = `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&z=15&output=embed`;
+        main.append(mapLink, map);
+        if (Number.isFinite(alert.locationAccuracy)) {
+          const accuracy = document.createElement('p');
+          accuracy.textContent = `Reported accuracy: about ${Math.round(alert.locationAccuracy)} metres.`;
+          main.append(accuracy);
+        }
+      } else {
+        const unavailable = document.createElement('p');
+        unavailable.textContent = 'Location was unavailable when this alert was sent.';
+        main.append(unavailable);
+      }
+
+      const signals = document.createElement('p');
+      signals.textContent = `Signals: ${(alert.signals || []).join(', ') || 'Distress signal'}`;
+      main.append(signals);
+    } catch (error) {
+      details.textContent = error.message || 'Could not load this alert.';
+    }
+  }
 
   let codewords = [];
 
@@ -656,6 +714,15 @@
     state.textContent = `Status: ${alert.status || 'TRIGGERED'} | Score: ${alert.score ?? 1.0}`;
 
     details.append(title, time, state);
+    if (Number.isFinite(alert.latitude) && Number.isFinite(alert.longitude)) {
+      const mapLink = document.createElement('a');
+      mapLink.href = `https://maps.google.com/?q=${encodeURIComponent(`${alert.latitude},${alert.longitude}`)}`;
+      mapLink.target = '_blank';
+      mapLink.rel = 'noopener noreferrer';
+      mapLink.textContent = 'View alert location';
+      mapLink.style.cssText = 'display:block;margin-top:8px;color:#075e54;font-weight:700';
+      details.append(mapLink);
+    }
     item.append(warning, details);
     dashboardHistoryList.prepend(item);
   }
