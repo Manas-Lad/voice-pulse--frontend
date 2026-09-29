@@ -9,7 +9,6 @@
 
   if (deviceToken) {
     localStorage.setItem('deviceToken', deviceToken);
-    // Keep parameters in address bar or clean up gracefully
   } else {
     deviceToken = localStorage.getItem('deviceToken');
   }
@@ -53,6 +52,21 @@
   const codewordFeedback = document.querySelector('#codeword-feedback');
   const activeCodewordsList = document.querySelector('#active-codewords-list');
 
+  // Helper function to format timestamp cleanly in IST
+  function formatTimestampIST(rawTimestamp) {
+    if (!rawTimestamp) return 'Just now';
+    let date;
+    if (typeof rawTimestamp === 'number') {
+      date = new Date(rawTimestamp);
+    } else {
+      const isoStr = String(rawTimestamp).endsWith('Z') ? rawTimestamp : `${rawTimestamp}Z`;
+      date = new Date(isoStr);
+    }
+    return isNaN(date.getTime()) 
+      ? String(rawTimestamp) 
+      : date.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' });
+  }
+
   async function showSharedAlert(token) {
     const main = document.createElement('main');
     main.className = 'dashboard-content';
@@ -68,7 +82,7 @@
       const response = await fetch(`${API_BASE_URL}/alerts/shared/${encodeURIComponent(token)}`);
       if (!response.ok) throw new Error('This alert link is invalid or has expired.');
       const alert = await response.json();
-      details.textContent = `Alert received ${alert.timestamp ? new Date(alert.timestamp).toLocaleString() : 'recently'}.`;
+      details.textContent = `Alert received ${formatTimestampIST(alert.timestamp)}.`;
 
       if (Number.isFinite(alert.latitude) && Number.isFinite(alert.longitude)) {
         const coordinates = `${alert.latitude},${alert.longitude}`;
@@ -76,15 +90,15 @@
         mapLink.href = `https://maps.google.com/?q=${encodeURIComponent(coordinates)}`;
         mapLink.target = '_blank';
         mapLink.rel = 'noopener noreferrer';
-        mapLink.textContent = 'Open sender’s location in Maps';
+        mapLink.textContent = 'Open sender’s location in Google Maps';
         mapLink.style.cssText = 'display:inline-block;margin:8px 0 16px;color:#075e54;font-weight:700';
         const map = document.createElement('iframe');
-        map.title = 'Map showing the alert location';
+        map.title = 'Map showing the distress location';
         map.loading = 'lazy';
         map.width = '100%';
         map.height = '380';
         map.style.border = '0';
-        map.src = `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&z=15&output=embed`;
+        map.src = `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&z=16&output=embed`;
         main.append(mapLink, map);
         if (Number.isFinite(alert.locationAccuracy)) {
           const accuracy = document.createElement('p');
@@ -249,15 +263,21 @@
     map.title = title;
     map.loading = 'lazy';
     map.referrerPolicy = 'no-referrer-when-downgrade';
-    map.src = `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&z=15&output=embed`;
+    map.style.width = '100%';
+    map.style.height = '100%';
+    map.style.minHeight = '300px';
+    map.style.border = '0';
+    map.src = `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&z=16&output=embed`;
     dashboardMap.replaceChildren(map);
     dashboardMap.setAttribute('role', 'region');
     dashboardMap.setAttribute('aria-label', title);
   };
 
-  // Priority 1: If opened via SMS emergency link, load the incident location
+  let hasPlottedAlertLocation = false;
+
+  // PRIORITY 1: Check if alertToken is passed via SMS link
   if (alertToken) {
-    showMapMessage('Loading emergency alert location...');
+    showMapMessage('Loading emergency event location...');
     fetch(`${API_BASE_URL}/alerts/shared/${encodeURIComponent(alertToken)}`)
       .then(res => {
         if (!res.ok) throw new Error('Shared alert link expired or invalid.');
@@ -265,36 +285,48 @@
       })
       .then(alert => {
         if (Number.isFinite(alert.latitude) && Number.isFinite(alert.longitude)) {
-          renderMapIframe(alert.latitude, alert.longitude, 'Emergency distress location');
-          setDashboardAlert(`CRITICAL ALERT: Viewing distress location for event #${alert.id}`, true);
+          hasPlottedAlertLocation = true;
+          renderMapIframe(alert.latitude, alert.longitude, 'Victim distress location');
+          setDashboardAlert(`CRITICAL ALERT: Distress event detected (${alert.signals?.join(', ') || 'SOS'})`, true);
         } else {
-          showMapMessage('Coordinates were not available for this alert.');
+          showMapMessage('Coordinates were not recorded with this distress alert.');
         }
       })
       .catch(err => {
         console.warn('Could not load shared alert location:', err);
-        showMapMessage('Could not retrieve distress coordinates.');
+        fallbackToRecentDeviceAlertLocation();
       });
-  } 
-  // Priority 2: Fall back to browser geolocation when browsing normally
-  else if (dashboardMap) {
-    if (!navigator.geolocation) {
-      showMapMessage('Geolocation is not supported by this browser.');
-    } else {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          renderMapIframe(latitude, longitude, 'Current location map');
-        },
-        (error) => {
-          if (error.code === error.PERMISSION_DENIED) {
-            showMapMessage('Location access was denied.');
-          } else {
-            showMapMessage('Unable to determine location.');
-          }
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
+  } else {
+    // If no alertToken, inspect the device's latest alert first before touching browser GPS
+    fallbackToRecentDeviceAlertLocation();
+  }
+
+  // PRIORITY 2: Query the database for the victim's most recent alert coordinates
+  async function fallbackToRecentDeviceAlertLocation() {
+    showMapMessage('Syncing incident location from database...');
+    try {
+      const res = await fetch(`${API_BASE_URL}/alerts`);
+      if (res.ok) {
+        const allAlerts = await res.json();
+        const deviceAlerts = Array.isArray(allAlerts)
+          ? allAlerts.filter(a => a.deviceUuid === deviceToken || a.userId === deviceToken)
+          : [];
+
+        const latestWithCoords = deviceAlerts.reverse().find(a => Number.isFinite(a.latitude) && Number.isFinite(a.longitude));
+
+        if (latestWithCoords) {
+          hasPlottedAlertLocation = true;
+          renderMapIframe(latestWithCoords.latitude, latestWithCoords.longitude, 'Latest incident location');
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch device alerts for location:', e);
+    }
+
+    // PRIORITY 3: If no distress events exist in the database, display empty state
+    if (!hasPlottedAlertLocation) {
+      showMapMessage('No distress events logged yet. Waiting for mobile alert...');
     }
   }
 
@@ -674,12 +706,13 @@
   }
 
   // ==========================================
-  // 7. ALERT POLLING (ROBUST CLIENT-SIDE FILTER)
+  // 7. ALERT POLLING & REAL-TIME MAP SYNC
   // ==========================================
   function addLiveLog(message) {
     if (!dashboardLogList || typeof message !== 'string' || !message.trim()) return;
     const time = new Intl.DateTimeFormat('en-GB', {
       hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+      timeZone: 'Asia/Kolkata'
     }).format(new Date());
     const entry = document.createElement('li');
     const timestamp = document.createElement('time');
@@ -721,7 +754,7 @@
     title.textContent = `Distress detected (${triggers})`;
 
     const time = document.createElement('p');
-    time.textContent = alert.timestamp ? new Date(alert.timestamp).toLocaleString('en-IN') : 'Just now';
+    time.textContent = formatTimestampIST(alert.timestamp);
 
     const state = document.createElement('span');
     state.className = 'dashboard-history-status';
@@ -733,7 +766,7 @@
       mapLink.href = `https://maps.google.com/?q=${encodeURIComponent(`${alert.latitude},${alert.longitude}`)}`;
       mapLink.target = '_blank';
       mapLink.rel = 'noopener noreferrer';
-      mapLink.textContent = 'View alert location';
+      mapLink.textContent = 'View alert location in Google Maps';
       mapLink.style.cssText = 'display:block;margin-top:8px;color:#075e54;font-weight:700';
       details.append(mapLink);
     }
@@ -757,6 +790,11 @@
           renderAlertHistoryItem(alert);
           setDashboardAlert(`CRITICAL ALERT: Distress event detected (${alert.signals?.join(', ') || 'Voice Stress'})`, true);
           addLiveLog(`[SOS ALERT INGESTED] Event #${alert.id} received.`);
+
+          // Dynamically re-center map to the victim's location when an alert arrives
+          if (Number.isFinite(alert.latitude) && Number.isFinite(alert.longitude)) {
+            renderMapIframe(alert.latitude, alert.longitude, 'Live incident location');
+          }
         }
       });
     } catch (e) {
