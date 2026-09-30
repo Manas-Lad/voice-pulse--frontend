@@ -24,12 +24,20 @@
   // ==========================================
   const downloadBtn = document.querySelector('#download-apk-action');
   const downloadBtnText = document.querySelector('#download-btn-text');
+  
   if (downloadBtn && downloadBtnText) {
-    downloadBtn.addEventListener('click', () => {
-      downloadBtnText.textContent = 'Downloading APK...';
+    downloadBtn.addEventListener('click', (event) => {
+      // Allow default link navigation so browser handles download naturally
+      downloadBtnText.textContent = 'Starting Download...';
+
+      // Provide responsive UI feedback for file download initiation
+      setTimeout(() => {
+        downloadBtnText.textContent = 'APK Downloading...';
+      }, 1000);
+
       setTimeout(() => {
         downloadBtnText.textContent = 'Download APK';
-      }, 4000);
+      }, 5000);
     });
   }
 
