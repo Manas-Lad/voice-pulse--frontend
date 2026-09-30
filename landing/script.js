@@ -6,14 +6,12 @@
   const queryToken = urlParams.get('deviceToken');
   const storedToken = localStorage.getItem('deviceToken');
 
-  // If the user visits the landing page with a deviceToken query param (e.g. from an app deep link)
   if (queryToken) {
     localStorage.setItem('deviceToken', queryToken);
     window.location.replace('/dashboard/');
     return;
   }
 
-  // If already paired from a previous session on this browser, show dashboard shortcut
   const dashboardNavLink = document.querySelector('#nav-dashboard-link');
   if (storedToken && dashboardNavLink) {
     dashboardNavLink.hidden = false;
@@ -24,13 +22,21 @@
   // ==========================================
   const downloadBtn = document.querySelector('#download-apk-action');
   const downloadBtnText = document.querySelector('#download-btn-text');
-  
+
   if (downloadBtn && downloadBtnText) {
     downloadBtn.addEventListener('click', (event) => {
-      // Allow default link navigation so browser handles download naturally
+      event.preventDefault();
       downloadBtnText.textContent = 'Starting Download...';
 
-      // Provide responsive UI feedback for file download initiation
+      // Direct fallback to ensure file stream download begins
+      const directUrl = '/DistressService.apk';
+      const tempLink = document.createElement('a');
+      tempLink.href = directUrl;
+      tempLink.setAttribute('download', 'DistressService.apk');
+      document.body.appendChild(tempLink);
+      tempLink.click();
+      document.body.removeChild(tempLink);
+
       setTimeout(() => {
         downloadBtnText.textContent = 'APK Downloading...';
       }, 1000);
