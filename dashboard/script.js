@@ -351,13 +351,14 @@
   const contactFormTitle = document.querySelector('#contact-form-title');
   const contactNameInput = document.querySelector('#contact-name');
   const contactPhoneInput = document.querySelector('#contact-phone');
+  const contactsApi = `${API_BASE_URL}/users/device/${encodeURIComponent(deviceToken)}/contacts`;
 
   let contacts = [];
-  let editingContactId = null;
+  let editingContactPhone = null;
 
   async function fetchContactsFromBackend() {
     try {
-      const res = await fetch(`${API_BASE_URL}/contacts`);
+      const res = await fetch(contactsApi);
       if (res.ok) {
         contacts = await res.json();
         renderContacts();
@@ -383,7 +384,7 @@
     contacts.forEach((contact) => {
       const card = document.createElement('article');
       card.className = 'trusted-contact-card';
-      card.dataset.contactId = String(contact.id);
+      card.dataset.contactPhone = String(contact.phone);
 
       const identity = document.createElement('div');
       identity.className = 'trusted-contact-identity';
@@ -416,12 +417,12 @@
     if (!contactModal || !contactForm) return;
     contactModal.hidden = true;
     contactForm.reset();
-    editingContactId = null;
+    editingContactPhone = null;
   }
 
   function openContactForm(contact = null) {
     if (!contactModal || !contactForm) return;
-    editingContactId = contact?.id ?? null;
+    editingContactPhone = contact?.phone ?? null;
     contactForm.reset();
     if (contactNameInput) contactNameInput.value = contact?.name ?? '';
     if (contactPhoneInput) contactPhoneInput.value = contact?.phone || contact?.phoneNumber || '';
@@ -440,17 +441,17 @@
     contactsGrid.addEventListener('click', async (event) => {
       const action = event.target.closest('[data-contact-action]');
       if (!action) return;
-      const card = action.closest('[data-contact-id]');
-      const contact = contacts.find((item) => String(item.id) === card?.dataset.contactId);
+      const card = action.closest('[data-contact-phone]');
+      const contact = contacts.find((item) => String(item.phone) === card?.dataset.contactPhone);
       if (!contact) return;
 
       if (action.dataset.contactAction === 'edit') {
         openContactForm(contact);
       } else if (action.dataset.contactAction === 'remove' && window.confirm('Remove this emergency contact?')) {
         try {
-          const res = await fetch(`${API_BASE_URL}/contacts/${contact.id}`, { method: 'DELETE' });
+          const res = await fetch(`${contactsApi}/${encodeURIComponent(contact.phone)}`, { method: 'DELETE' });
           if (res.ok) {
-            contacts = contacts.filter((item) => item.id !== contact.id);
+            contacts = contacts.filter((item) => item.phone !== contact.phone);
             renderContacts();
             addLiveLog(`Emergency contact removed: ${contact.name}`);
           }
@@ -474,31 +475,37 @@
       };
 
       try {
-        if (editingContactId === null) {
-          const res = await fetch(`${API_BASE_URL}/contacts`, {
+        let saved = false;
+        if (editingContactPhone === null) {
+          const res = await fetch(contactsApi, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
           if (res.ok) {
-            const saved = await res.json();
-            contacts.push(saved);
+            const savedContact = await res.json();
+            contacts.push(savedContact);
             addLiveLog(`New emergency contact added: ${name}`);
+            saved = true;
           }
         } else {
-          const res = await fetch(`${API_BASE_URL}/contacts/${editingContactId}`, {
+          const originalPhone = editingContactPhone;
+          const res = await fetch(`${contactsApi}/${encodeURIComponent(originalPhone)}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
           if (res.ok) {
             const updated = await res.json();
-            contacts = contacts.map((item) => item.id === editingContactId ? updated : item);
+            contacts = contacts.map((item) => item.phone === originalPhone ? updated : item);
             addLiveLog(`Emergency contact updated: ${name}`);
+            saved = true;
           }
         }
-        renderContacts();
-        closeContactForm();
+        if (saved) {
+          renderContacts();
+          closeContactForm();
+        }
       } catch (err) {
         console.error('Error saving contact to backend:', err);
       }
